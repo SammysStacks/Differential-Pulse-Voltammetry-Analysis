@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt
 sys.path.append('./Helper Files/')  # Folder with All the Helper Files
 import excelProcessing
 import dataPlotting
-#import polynomialBaselineFit
+import polynomialBaselineFit
 
 
 if __name__ == "__main__":
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     
     # Parameters Specific for Each DPV Analysis Algorythm
     if useBaselineSubtraction:
-        order = 1  # Order of the Polynomial Fit in Baseline Subtraction (Extremely Important to Modify)
+        polynomialOrder = 1  # Order of the Polynomial Fit in Baseline Subtraction (Extremely Important to Modify)
     
     # Specify Figure Asthetics
     numSubPlotsX = 2  # The Number of Plots to Display in Each Row
@@ -120,15 +120,11 @@ if __name__ == "__main__":
         if useCHIPeaks:
             # Set Axes Limits
             axisLimits = [min(current) - min(current)/10, max(current) + max(current)/10]
-        # Perform Iterative Baseline Subtraction
+        # Perform Iterative Polynomial Subtraction
         elif useBaselineSubtraction:
-            # Get Baseline Depending on Ox/Red Curve
-            if reductiveScan:
-                baseObj = BaselineRemoval(-current)
-                baseline = current + baseObj.ModPoly(order)
-            else:
-                baseObj = BaselineRemoval(current)
-                baseline = current - baseObj.ModPoly(order)
+            # Get Baseline from Iterative Polynomial Subtraction
+            polynomialFit = polynomialBaselineFit.polynomialFit()
+            baseline = polynomialFit.baselineSubtractAPI(current, polynomialOrder, reductiveScan)
             # Find Current After Baseline Subtraction
             baselineCurrent = current - baseline
         # Find Linear Baseline   

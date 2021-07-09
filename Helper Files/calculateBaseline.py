@@ -7,20 +7,49 @@ Need to Install on the Anaconda Prompt:
     $ pip install natsort
     $ pip install BaselineRemoval
 """
-import csv
-import os
-import sys
-import openpyxl as xl
-import matplotlib.pyplot as plt
+
+# Import Basic Modules
 import numpy as np
-import re
-import math
-from scipy.signal import argrelextrema
-# Modules for Low Pass Filter
-from scipy.signal import butter, lfilter
-from scipy.signal import freqs
+# Import Modules for Baseline Subtraction
+from BaselineRemoval import BaselineRemoval
 
 
+
+
+# ---------------------------------------------------------------------------#
+# --------------------- Specify/Find File Names -----------------------------#
+
+class polynomialFit:
+    
+    def baselineSubtractionAPI(self, current, polynomialOrder, reductiveScan):
+        # Get Baseline Depending on Ox/Red Curve
+        if reductiveScan:
+            baseObj = BaselineRemoval(-current)
+            baseline = current + baseObj.ModPoly(polynomialOrder)
+        else:
+            baseObj = BaselineRemoval(current)
+            baseline = current - baseObj.ModPoly(polynomialOrder)
+        # Return Baseline
+        return baseline
+    
+    def baselineSubtraction(self, potential, current, polynomialOrder, Iterations, reductiveScan):
+        if reductiveScan:
+            baseline = - self.getBaseline(potential, -current, Iterations, polynomialOrder)
+        else:
+            baseline = self.getBaseline(potential, current, Iterations, polynomialOrder)
+        # Return Baseline
+        return baseline
+    
+    def getBaseline(self, x, y, Iterations, order):
+        yNew = y.copy()
+        for _ in range(Iterations):
+            fitI = np.polyfit(x, yNew, order)
+            baseline = np.polyval(fitI, x)
+            for i in range(len(y)):
+                if yNew[i] > baseline[i]:
+                    yNew[i] = baseline[i]
+        return baseline
+        
 
 class bestLinearFit:
     

@@ -186,7 +186,7 @@ class processFiles(dataProcessing):
 if __name__ == "__main__":
     
     inputFile = './diffusion_4.txt'
-    processPulseData().getData(inputFile)
+    processFiles().getData(inputFile)
     
     
     
