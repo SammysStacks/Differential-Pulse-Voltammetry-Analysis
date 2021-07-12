@@ -1,8 +1,7 @@
 
 """
-Need to Install on the Anaconda Prompt:
+Need to Install in the Python Enviroment Beforehand:
     $ conda install openpyxl
-    $ conda install seaborn
     $ conda install scipy
     $ pip install natsort
     $ pip install pyexcel
@@ -20,10 +19,6 @@ import math
 import numpy as np
 # Module to Sort Files in Order
 from natsort import natsorted
-# Modules for Peak Analysis
-from scipy.signal import argrelextrema
-# Baseline Subtraction
-from BaselineRemoval import BaselineRemoval
 # Modules to Plot
 import matplotlib.pyplot as plt
 
@@ -31,8 +26,10 @@ import matplotlib.pyplot as plt
 sys.path.append('./Helper Files/')  # Folder with All the Helper Files
 import excelProcessing
 import dataPlotting
-import polynomialBaselineFit
+import calculateBaseline
 
+from scipy.interpolate import UnivariateSpline
+import scipy.signal
 
 if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
@@ -40,28 +37,34 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Specify Where the Files are Located
-    dataDirectory = "./Input Data/Concentration Analysis/"   # The Path to the CHI Data; Must End With '/'
-    outputDirectory = "./Output Data/Concentration Analysis/"   # The Path to Output Folder (For Plots); Must End With '/'
+    dataDirectory = "./Input Data/Test 2/"   # The Path to the CHI Data; Must End With '/'
+    outputDirectory = "./Output Data/Test 2/"   # The Path to Output Folder (For Plots); Must End With '/'
     
     # Specify Which Files to Read In
-    useAllFiles = True # Read in All TXT/CSV/EXCEL Files in the dataDirectory
-    if useAllFiles:
+    useAllFolderFiles = True # Read in All TXT/CSV/EXCEL Files in the dataDirectory
+    if useAllFolderFiles:
         # Specify Which Files You Want to Read
         fileDoesntContain = "Round 11"
-        fileContains = "Round 1"
+        fileContains = "Round"
     else:
         # Else, Specify the File Names
         dpvFiles = ['New PB Heat 100C (1).csv']
         
     # Specify How You Want to Analyze the DPV Curve (First Variable Listed as True Will be Executed)
     useCHIPeaks = False            # Use CHI's Predicted Peak Values (The Information Must be in the TXT/CSV/Excel)
-    useBaselineSubtraction = True # Perform Iterative Polynomial Fit to Find the Baseline and peak Current
+    useBaselineSubtraction = False # Perform Iterative Polynomial Fit to Find the Baseline and peak Current
     useLinearFit = True            # Fit a Linear Baseline under the Peak to Find the Peak Current
     
     # Parameters Specific for Each DPV Analysis Algorythm
     if useBaselineSubtraction:
-        polynomialOrder = 1  # Order of the Polynomial Fit in Baseline Subtraction (Extremely Important to Modify)
+        polynomialOrder = 2  # Order of the Polynomial Fit in Baseline Subtraction (Extremely Important to Modify)
     
+    # Cut Off Data From the DPV Graph
+    minPotentialCut = -0.1   # The Minimum Potential to Display (If Potential is Greater Than or Equal, Keep the Data)
+    maxPotentialCut = 0.5    # The Maximum Potential to Display (If Potential is Less Than or Equal, Keep the Data)
+    
+    # Specify the Plotting Extent
+    plotBaselineSteps = False # Display the Baseline as Well as the Final Current After Baseline Subtraction
     # Specify Figure Asthetics
     numSubPlotsX = 2  # The Number of Plots to Display in Each Row
     figWidth = 25     # The Figure Width
@@ -70,18 +73,12 @@ if __name__ == "__main__":
     scaleCurrent = 10**6        # Scale the Current (Y-Axis)
     yLabel = "Current (uAmps)"  # Y-Axis (The Current) Units
     
-    # Cut Off Data From the DPV Graph
-    minPotentialCut = -0.1   # The Minimum Potential to Display (If Potential is Greater Than or Equal, Keep the Data)
-    maxPotentialCut = 0.5    # The Maximum Potential to Display (If Potential is Less Than or Equal, Keep the Data)
-    
-    plotBaselineSteps = False # Display the Baseline as Well as the Final Current After Baseline Subtraction
-
     # ---------------------------------------------------------------------- #
     # ------------------------- Preparation Steps -------------------------- #
     
     # Get File Information
     extractData = excelProcessing.processFiles()
-    if useAllFiles:
+    if useAllFolderFiles:
         dpvFiles = extractData.getFiles(dataDirectory, fileDoesntContain, fileContains)
     # Sort Files
     dpvFiles = natsorted(dpvFiles)
@@ -90,6 +87,7 @@ if __name__ == "__main__":
 
     # Create One Plot with All the DPV Curves
     plot = dataPlotting.plots(yLabel, outputDirectory)
+    numSubPlotsX = min(len(dpvFiles), numSubPlotsX)
     fig, ax = plt.subplots(math.ceil(len(dpvFiles)/numSubPlotsX), numSubPlotsX, sharey=False, sharex = True, figsize=(figWidth,figHeight))
     fig.tight_layout(pad=3.0)
     data = {}  # Store Results ina Dictionary for Later Analaysis
@@ -100,6 +98,7 @@ if __name__ == "__main__":
     # For Each Data File, Extract the Important Data and Plot
     for fileNum, currentFile in enumerate(sorted(dpvFiles)):
         
+        # ----------------------- Extract the Data --------------------------#
         # Extract the Data/File Information from the File (Potential, Current)
         dataFile = dataDirectory + currentFile
         fileName = os.path.splitext(currentFile)[0]
@@ -109,65 +108,74 @@ if __name__ == "__main__":
         current = current[np.logical_and(minPotentialCut <= potential, potential <= maxPotentialCut)]
         potential = potential[np.logical_and(minPotentialCut <= potential, potential <= maxPotentialCut)]
         # Plot the Initial Data
-        fig1 = plt.figure(2+fileNum) # Leaving 2 Figures Free for Other plots
+        fig1 = plt.figure()
         plt.plot(potential, current, label="True Data: " + fileName, color='C0')
         
         # Determine Whether the Data is Oxidative or Reductive
         numNeg = sum(1 for currentVal in current if currentVal < 0)
         reductiveScan = numNeg > len(current)/2
         
-        # If We use the CHI Peaks, Skip Peak Detection
+        # ---------------------- Get DPV Baseline ---------------------------#
+        # Perform Iterative Polynomial Subtraction
+        if useBaselineSubtraction:
+            # Get Baseline from Iterative Polynomial Subtraction
+            polynomialBaselineFit = calculateBaseline.polynomialBaselineFit()
+            baseline = polynomialBaselineFit.baselineSubtractionAPI(current, polynomialOrder, reductiveScan)
+            # Find Current After Baseline Subtraction
+            baselineCurrent = current - baseline
+            
+            smoothCurrent = UnivariateSpline(potential, baselineCurrent, s=0.001, k=5)
+            smoothCurrentPeaks = scipy.signal.find_peaks(smoothCurrent.derivative(n=1)(potential), prominence=10E-10)
+            
+            if len(smoothCurrentPeaks[0]) > 0:
+                bestPeak = smoothCurrentPeaks[1]['prominences'].argmax()
+                peakInd = smoothCurrentPeaks[0][bestPeak]
+                
+                Ip = baselineCurrent[peakInd]
+                Vp = potential[peakInd]
+            else:
+                Ip = 0; Vp = 0; peakInd = 0;
+        # Find Optimal Linear Baseline Under Peak
+        elif useLinearFit:
+            # Get Baseline from Iterative Polynomial Subtraction
+            linearBaselineFit = calculateBaseline.bestLinearFit(potential, current)
+            baseline = linearBaselineFit.findLinearBaseline(reductiveScan)
+            # Find Current After Baseline Subtraction
+            baselineCurrent = current - baseline
+            # Find the Peak Current After Baseline Subtraction
+            peakInd = baselineCurrent.argmax()
+            Ip = baselineCurrent[peakInd]
+            Vp = potential[peakInd]
+        # At This Point, You BETTER be Getting the Peaks from the CHI File 
+        elif not useCHIPeaks:
+            print("Please Specify a DPV Peak Detection Mechanism")
+            sys.exit()
+        
+        # ----------------------- Get DPV Peaks -----------------------------#
         if useCHIPeaks:
             # Set Axes Limits
             axisLimits = [min(current) - min(current)/10, max(current) + max(current)/10]
-        # Perform Iterative Polynomial Subtraction
-        elif useBaselineSubtraction:
-            # Get Baseline from Iterative Polynomial Subtraction
-            polynomialFit = polynomialBaselineFit.polynomialFit()
-            baseline = polynomialFit.baselineSubtractAPI(current, polynomialOrder, reductiveScan)
-            # Find Current After Baseline Subtraction
-            baselineCurrent = current - baseline
-        # Find Linear Baseline   
-        elif useLinearFit:
-            a = 1
         else:
-            print("Please Specify a DPV Peak Detection Mechanism")
-        
-        if not useCHIPeaks:
-
+            
+            
             # Plot Subtracted baseline
             plt.plot(potential, baselineCurrent, label="Current After Baseline Subtraction", color='C2')
             plt.plot(potential, baseline, label="Baseline Current", color='C1')  
             
-            # Find Where Data Begins to Deviate from the Edges
-            minimums = argrelextrema(baselineCurrent, np.less)[0]
-            maximums = argrelextrema(baselineCurrent, np.greater)[0]
-            stopInitial = min(minimums[0], maximums[0]) + 10
-            stopFinal = max(minimums[-1], maximums[0]) - 10
-            
-            # Get the Peak Current (Max Differenc between the Data and the Baseline)
-            if stopInitial <= stopFinal:
-                if reductiveScan:
-                    IpIndex = np.argmin(baselineCurrent[stopInitial:stopFinal+1])
-                else:
-                    IpIndex = np.argmax(baselineCurrent[stopInitial:stopFinal+1])
-                Ip = baselineCurrent[stopInitial+IpIndex]
-                Vp = potential[stopInitial+IpIndex]
-            else:
-                Ip = 0; IpIndex = 0
-                Vp = 0
-        
-            # Plot the Peak Current (Verticle Line) for Visualization
+            # Get the Axis Limit on the Figure
             axisLimits = [min(*baselineCurrent,*current,*baseline), max(*baselineCurrent,*current,*baseline)]
             axisLimits[0] -= (axisLimits[1] - axisLimits[0])/10
             axisLimits[1] += (axisLimits[1] - axisLimits[0])/10
-            plt.axvline(x=Vp, ymin=plot.normalize(baseline[stopInitial+IpIndex], axisLimits[0], axisLimits[1]), ymax=plot.normalize(float(Ip + baseline[stopInitial+IpIndex]), axisLimits[0], axisLimits[1]), linewidth=2, color='r', label="Peak Current: " + "%.4g"%Ip)
+            # Plot the Peak Current (Verticle Line) for Visualization
+            plt.axvline(x=Vp, ymin=plot.normalize(baseline[peakInd], axisLimits[0], axisLimits[1]), ymax=plot.normalize(float(Ip + baseline[peakInd]), axisLimits[0], axisLimits[1]), linewidth=2, color='r', label="Peak Current: " + "%.4g"%Ip)
     
         # Save Figure
         plot.saveplot(fig1, axisLimits, fileName)
         
+        # ----------------------- Get DPV Peaks -----------------------------#
+        
         # Keep Running Subplots Order
-        if numSubPlotsX == 1 and len(dpvFiles) == 1:
+        if numSubPlotsX == 1 or len(dpvFiles) == 1:
             currentAxes = ax
         elif numSubPlotsX == 1:
             currentAxes = ax[fileNum]
@@ -193,7 +201,7 @@ if __name__ == "__main__":
             currentAxes.plot(potential, current, label="True Data: " + fileName, color='C0')
             currentAxes.plot(potential, baselineCurrent, label="Current After Baseline Subtraction", color='C2')
             currentAxes.plot(potential, baseline, label="Baseline Current", color='C1')  
-            currentAxes.axvline(x=Vp, ymin=plot.normalize(baseline[stopInitial+IpIndex], currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), ymax=plot.normalize(float(Ip+baseline[stopInitial+IpIndex]), currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), linewidth=2, color='r', label="Peak Current: " + "%.4g"%Ip)
+            currentAxes.axvline(x=Vp, ymin=plot.normalize(baseline[peakInd], currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), ymax=plot.normalize(float(Ip+baseline[peakInd]), currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), linewidth=2, color='r', label="Peak Current: " + "%.4g"%Ip)
             currentAxes.legend(loc='best')  
     
         currentAxes.set_xlabel("Potential (V)")
@@ -214,19 +222,19 @@ plot.saveSubplot(fig)
 plt.title(fileName+ " DPV Graph") # Need this Line as we Change the Title When we Save Subplots
 plt.show() # Must be the Last Line
 
+
 # ---------------------------------------------------------------------------#
 # -------------- Specific Plotting Method for This Data ---------------------#
 # ----------------- USER SPECIFIC (USER SHOULD EDIT) ------------------------#
 
+
 if not useCHIPeaks:
-    fig = plt.figure(0)
-    #fig.tight_layout(pad=3) #tight margins
+    fig = plt.figure()
     fig.set_figwidth(7.5)
     fig.set_figheight(5)
     #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
     for i,filename in enumerate(sorted(data.keys())):
         
-    
         # Get Peak Current
         baselineCurrent = data[filename]["baselineCurrent"]
         potential = data[filename]["potential"]
@@ -247,7 +255,7 @@ if not useCHIPeaks:
 
 #sys.exit()
 
-fig = plt.figure(1)
+fig = plt.figure()
 #fig.tight_layout(pad=3) #tight margins
 fig.set_figwidth(7.5)
 fig.set_figheight(5)
@@ -302,7 +310,7 @@ plt.savefig(outputDirectory + "Concentration Dependant DPV Curve Norepinephrine 
 plt.show()
 
 
-fig = plt.figure(2)
+fig = plt.figure()
 #fig.tight_layout(pad=3) #tight margins
 fig.set_figwidth(7.5)
 fig.set_figheight(5)
@@ -357,37 +365,3 @@ plt.show()
 
 
 
-
-"""
-Deleted Code:
-    
-    # Fit Lines to Ends of Graph
-    m0, b0 = np.polyfit(potential[0:edgeCollectionLeft], current[0:edgeCollectionLeft], 1)
-    mf, bf = np.polyfit(potential[-edgeCollectionRight:-1], current[-edgeCollectionRight:-1], 1)
-    potentialNumpy = np.array(potential)
-    y0 = m0*potentialNumpy+b0
-    yf = mf*potentialNumpy+bf
-    
-    # Find Where Data Begins to Deviate from the Lines
-    stopInitial = np.argwhere(abs(((y0-current)/current)) < errorVal)[-1][0]
-    stopFinal = np.argwhere(abs(((yf-current)/current)) < errorVal)[0][0]
-    
-    # Get the Points inside the Peak
-    potentialEnds = potential[0:stopInitial] + potential[stopFinal:-1]
-    currentEnds = current[0:stopInitial] + current[stopFinal:-1]
-    
-    # Fit the Peak with a Cubic Spline
-    cs = CubicSpline(potentialEnds, currentEnds)
-    xs = np.arange(potential[0], potential[-1], (potential[-1]-potential[0])/len(potential))
-    
-    # Get the Peak Current (Max Differenc between the Data and the Spline/Background)
-    peakCurrents = current[stopInitial:stopFinal+1] - cs(potential[stopInitial:stopFinal+1])
-    IpIndex = np.argmax(peakCurrents)
-    Ip = peakCurrents[IpIndex]
-    Vp = potential[IpIndex+stopInitial]
-    
-    # Plot Fit
-    plt.plot(potential, cs(xs), label="Spline Interpolation")
-    axisLimits = [min(current) - min(current)/10, max(current) + max(current)/10]
-    """
-    
