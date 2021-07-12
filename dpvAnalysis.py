@@ -37,15 +37,15 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Specify Where the Files are Located
-    dataDirectory = "./Input Data/Test 2/"   # The Path to the CHI Data; Must End With '/'
-    outputDirectory = "./Output Data/Test 2/"   # The Path to Output Folder (For Plots); Must End With '/'
+    dataDirectory = "./Input Data/Test 3/"   # The Path to the CHI Data; Must End With '/'
+    outputDirectory = "./Output Data/Test 3/"   # The Path to Output Folder (For Plots); Must End With '/'
     
     # Specify Which Files to Read In
     useAllFolderFiles = True # Read in All TXT/CSV/EXCEL Files in the dataDirectory
     if useAllFolderFiles:
         # Specify Which Files You Want to Read
         fileDoesntContain = "Round 11"
-        fileContains = "Round"
+        fileContains = ""
     else:
         # Else, Specify the File Names
         dpvFiles = ['New PB Heat 100C (1).csv']
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     os.makedirs(outputDirectory, exist_ok = True)
 
     # Create One Plot with All the DPV Curves
-    plot = dataPlotting.plots(yLabel, outputDirectory)
+    plot = dataPlotting.plots(yLabel, outputDirectory, useCHIPeaks, plotBaselineSteps, numSubPlotsX, len(dpvFiles))
     numSubPlotsX = min(len(dpvFiles), numSubPlotsX)
     fig, ax = plt.subplots(math.ceil(len(dpvFiles)/numSubPlotsX), numSubPlotsX, sharey=False, sharex = True, figsize=(figWidth,figHeight))
     fig.tight_layout(pad=3.0)
@@ -107,9 +107,6 @@ if __name__ == "__main__":
         current = current*scaleCurrent
         current = current[np.logical_and(minPotentialCut <= potential, potential <= maxPotentialCut)]
         potential = potential[np.logical_and(minPotentialCut <= potential, potential <= maxPotentialCut)]
-        # Plot the Initial Data
-        fig1 = plt.figure()
-        plt.plot(potential, current, label="True Data: " + fileName, color='C0')
         
         # Determine Whether the Data is Oxidative or Reductive
         numNeg = sum(1 for currentVal in current if currentVal < 0)
@@ -143,71 +140,21 @@ if __name__ == "__main__":
             # Find Current After Baseline Subtraction
             baselineCurrent = current - baseline
             # Find the Peak Current After Baseline Subtraction
-            peakInd = baselineCurrent.argmax()
+            peakInd = abs(baselineCurrent).argmax()
             Ip = baselineCurrent[peakInd]
             Vp = potential[peakInd]
         # At This Point, You BETTER be Getting the Peaks from the CHI File 
         elif not useCHIPeaks:
             print("Please Specify a DPV Peak Detection Mechanism")
             sys.exit()
-        
-        # ----------------------- Get DPV Peaks -----------------------------#
-        if useCHIPeaks:
-            # Set Axes Limits
-            axisLimits = [min(current) - min(current)/10, max(current) + max(current)/10]
-        else:
-            
-            
-            # Plot Subtracted baseline
-            plt.plot(potential, baselineCurrent, label="Current After Baseline Subtraction", color='C2')
-            plt.plot(potential, baseline, label="Baseline Current", color='C1')  
-            
-            # Get the Axis Limit on the Figure
-            axisLimits = [min(*baselineCurrent,*current,*baseline), max(*baselineCurrent,*current,*baseline)]
-            axisLimits[0] -= (axisLimits[1] - axisLimits[0])/10
-            axisLimits[1] += (axisLimits[1] - axisLimits[0])/10
-            # Plot the Peak Current (Verticle Line) for Visualization
-            plt.axvline(x=Vp, ymin=plot.normalize(baseline[peakInd], axisLimits[0], axisLimits[1]), ymax=plot.normalize(float(Ip + baseline[peakInd]), axisLimits[0], axisLimits[1]), linewidth=2, color='r', label="Peak Current: " + "%.4g"%Ip)
     
-        # Save Figure
-        plot.saveplot(fig1, axisLimits, fileName)
+        # ----------------- Save and plot DPV Analysis ----------------------#
         
-        # ----------------------- Get DPV Peaks -----------------------------#
-        
-        # Keep Running Subplots Order
-        if numSubPlotsX == 1 or len(dpvFiles) == 1:
-            currentAxes = ax
-        elif numSubPlotsX == 1:
-            currentAxes = ax[fileNum]
-        elif numSubPlotsX == len(dpvFiles):
-            currentAxes = ax[fileNum]
-        elif numSubPlotsX > 1:
-            currentAxes = ax[fileNum//numSubPlotsX][fileNum%numSubPlotsX]
-        else:
-            print("numSubPlotsX CANNOT be < 1. Currently it is: ", numSubPlotsX)
-            exit
-        
-        # Plot Data in Subplots
-        if useCHIPeaks and Ip != None and Vp != None:
-            currentAxes.plot(potential, current, label="True Data: " + fileName, color='C0')
-            currentAxes.axvline(x=Vp, ymin=plot.normalize(max(current) - Ip, currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), ymax=plot.normalize(max(current), currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), linewidth=2, color='r', label="Peak Current: " + "%.4g"%Ip)
-            currentAxes.legend(loc='upper left')  
-        elif not plotBaselineSteps:
-            currentAxes.plot(potential, baselineCurrent, label="Current After Baseline Subtraction", color='C1')
-            currentAxes.axvline(x=Vp, ymin=plot.normalize(0, currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), ymax=plot.normalize(float(Ip), currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), linewidth=2, color='r', label="Peak Current: " + "%.4g"%Ip)
-            currentAxes.axhline(y = 0, color='r', linestyle='--')
-            currentAxes.legend(loc='upper left')  
-        else:
-            currentAxes.plot(potential, current, label="True Data: " + fileName, color='C0')
-            currentAxes.plot(potential, baselineCurrent, label="Current After Baseline Subtraction", color='C2')
-            currentAxes.plot(potential, baseline, label="Baseline Current", color='C1')  
-            currentAxes.axvline(x=Vp, ymin=plot.normalize(baseline[peakInd], currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), ymax=plot.normalize(float(Ip+baseline[peakInd]), currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), linewidth=2, color='r', label="Peak Current: " + "%.4g"%Ip)
-            currentAxes.legend(loc='best')  
-    
-        currentAxes.set_xlabel("Potential (V)")
-        currentAxes.set_ylabel(yLabel)
-        currentAxes.set_title(fileName)
-        
+        # Plot the Current Files Results
+        plot.plotResults(potential, current, baseline, baselineCurrent, peakInd, Ip, Vp, fileName)
+        # Plot the Combined Full Results Showing Each Step
+        plot.plotFullResults(potential, current, baseline, baselineCurrent, peakInd, Ip, Vp, ax, fileNum, fileName)
+
         # Save Data in a Dictionary for Plotting Later
         data[fileName] = {}
         data[fileName]["Ip"] = Ip
@@ -248,12 +195,6 @@ if not useCHIPeaks:
     plt.savefig(outputDirectory + "Time Dependant DPV Curve Norepinephrine Full Curve Smooth.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
     plt.show()
 
-
-
-
-
-
-#sys.exit()
 
 fig = plt.figure()
 #fig.tight_layout(pad=3) #tight margins

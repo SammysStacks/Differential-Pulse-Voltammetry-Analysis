@@ -106,9 +106,14 @@ class bestLinearFit:
         
         return leftCutInd, rightCutInd
     
-    def createTangentLine(self, peakInd, smoothCurrent, reductiveScan = True, nearbyBuffer = 10):
+    def createTangentLine(self, peakInd, smoothCurrent, reductiveScale = 1, nearbyBuffer = 10, saveGoodInd = 4):
+        # Divide the Current into Two Groups: Left and Right
         leftCurrent = self.current[0:peakInd]
         rightCurrent = self.current[peakInd+1:len(self.current)]
+        # Store Possibly Good Tangent Indexes
+        goodTangentInd = {}
+        for goodInd in range(1+saveGoodInd):
+            goodTangentInd[goodInd] = []
         
         for rightInd, rightPoint in enumerate(rightCurrent):
             rightInd = rightInd + peakInd + 1
@@ -117,14 +122,17 @@ class bestLinearFit:
                 m0, b0 = np.polyfit(self.potential[[leftInd, rightInd]], self.current[[leftInd, rightInd]], 1)
                 linearFit = m0*self.potential + b0
                 
-                if reductiveScan:
-                    numWrongSideOfTangent = sum(linearFit[max(0,leftInd-nearbyBuffer):max(len(self.current),rightPoint+nearbyBuffer)] < smoothCurrent(self.potential)[max(0,leftInd-nearbyBuffer):max(len(self.current),rightPoint+nearbyBuffer)])
-                else:
-                    numWrongSideOfTangent = sum(linearFit[max(0,leftInd-nearbyBuffer):max(len(self.current),rightPoint+nearbyBuffer)] > smoothCurrent(self.potential)[max(0,leftInd-nearbyBuffer):max(len(self.current),rightPoint+nearbyBuffer)])
-                
-                if numWrongSideOfTangent == 0:
-                    return leftInd, rightInd
-                
+                # Find the Number of Points Above/Below the Tangent Line for Red/Ox
+                regionalLimits = np.s_[max(0,leftInd-nearbyBuffer):max(len(self.current),rightPoint+nearbyBuffer)]
+                numWrongSideOfTangent = sum(reductiveScale*(linearFit[regionalLimits] - smoothCurrent(self.potential)[regionalLimits]) > 0)
+                # If a Tangent Line is Drawn Correctly, Return the Tangent Points' Indexes
+                if numWrongSideOfTangent <= saveGoodInd:
+                    goodTangentInd[numWrongSideOfTangent].append((leftInd, rightInd))
+        
+        # If Nothing Found, Try and Return a Semi-Optimal Tangent Position
+        for goodInd in sorted(goodTangentInd.keys()):
+            if len(goodTangentInd[goodInd]) != 0:
+                return min(goodTangentInd[goodInd], key=lambda tangentPair: tangentPair[1]-tangentPair[0])
         return None, None
         
     
@@ -138,7 +146,7 @@ class bestLinearFit:
         # If a Peak Was Found, Find Baseline
         if peakInd != None:
             # Find the Peak Bounds
-            leftCutInd, rightCutInd = self.createTangentLine(peakInd, smoothCurrent, reductiveScan)
+            leftCutInd, rightCutInd = self.createTangentLine(peakInd, smoothCurrent, reductiveScale)
             print(leftCutInd, rightCutInd, peakInd)
             # If No Bounds Found Than it Was a Single Point Deviation
             if None in [leftCutInd, rightCutInd]:
@@ -168,29 +176,4 @@ class bestLinearFit:
         plt.show()
         
 
-        
 
-    
-"""
-        # Find Where Data Begins to Deviate from the Lines
-        stopInitial = np.argwhere(abs(((y0-current)/current)) < errorVal)[-1][0]
-        stopFinal = np.argwhere(abs(((yf-current)/current)) < errorVal)[0][0]
-        
-        # Get the Points inside the Peak
-        potentialEnds = potential[0:stopInitial] + potential[stopFinal:-1]
-        currentEnds = current[0:stopInitial] + current[stopFinal:-1]
-        
-        # Fit the Peak with a Cubic Spline
-        cs = CubicSpline(potentialEnds, currentEnds)
-        xs = np.arange(potential[0], potential[-1], (potential[-1]-potential[0])/len(potential))
-        
-        # Get the Peak Current (Max Differenc between the Data and the Spline/Background)
-        peakCurrents = current[stopInitial:stopFinal+1] - cs(potential[stopInitial:stopFinal+1])
-        IpIndex = np.argmax(peakCurrents)
-        Ip = peakCurrents[IpIndex]
-        Vp = potential[IpIndex+stopInitial]
-        
-        # Plot Fit
-        plt.plot(potential, cs(xs), label="Spline Interpolation")
-        axisLimits = [min(current) - min(current)/10, max(current) + max(current)/10]
-"""
