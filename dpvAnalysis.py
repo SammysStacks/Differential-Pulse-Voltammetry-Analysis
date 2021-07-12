@@ -37,8 +37,8 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Specify Where the Files are Located
-    dataDirectory = "./Input Data/Test 3/"   # The Path to the CHI Data; Must End With '/'
-    outputDirectory = "./Output Data/Test 3/"   # The Path to Output Folder (For Plots); Must End With '/'
+    dataDirectory = "./Input Data/Test 2/"   # The Path to the CHI Data; Must End With '/'
+    outputDirectory = "./Output Data/Test 2/"   # The Path to Output Folder (For Plots); Must End With '/'
     
     # Specify Which Files to Read In
     useAllFolderFiles = True # Read in All TXT/CSV/EXCEL Files in the dataDirectory
@@ -259,8 +259,8 @@ legendList = []
 #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
 for i,filename in enumerate(sorted(data.keys())):
     # Extract Data from Name
-    stringDigits = re.findall(r'\d+', filename) 
-    digitsInName = list(map(int, stringDigits))
+    stringDigits = re.findall('\d*\.?\d+', filename)
+    digitsInName = list(map(float, stringDigits))
     if len(digitsInName) == 2:
         concentration = digitsInName[0]
         timePoint = digitsInName[1]
@@ -272,7 +272,7 @@ for i,filename in enumerate(sorted(data.keys())):
         timePoint = digitsInName[0]
     else:
         print("Found Too Many Numbers in the FileName")
-        exit
+        sys.exit
     print(filename, timePoint, concentration)
     
     # Get Peak Current

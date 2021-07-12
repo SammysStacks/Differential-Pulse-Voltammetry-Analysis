@@ -13,8 +13,6 @@ from scipy.signal import butter, lfilter
 # Import Modules to Find Peak
 from scipy.interpolate import UnivariateSpline
 import scipy.signal
-# Import Modules to Fit the Peak
-from scipy.interpolate import CubicSpline
 # Modules to Plot
 import matplotlib.pyplot as plt
 
@@ -60,7 +58,7 @@ class bestLinearFit:
         self.potential = potential
         self.current = current
         self.linearFit = []
-        self.backgroundInterp = None
+        self.baseline = None
     
     def butter_lowpass(self, cutOff, fs, order=5):
         nyq = 0.5 * fs
@@ -74,7 +72,7 @@ class bestLinearFit:
         return y
     
     def findPeak(self, smoothCurrent, reductiveScale = 1, ignoredBoundaryPoints = 10):
-        smoothCurrentPeaks = scipy.signal.find_peaks(reductiveScale*smoothCurrent.derivative(n=1)(self.potential), prominence=10E-3, width=4)
+        smoothCurrentPeaks = scipy.signal.find_peaks(reductiveScale*smoothCurrent.derivative(n=1)(self.potential), prominence=10E-4, width=4)
         allPeakInds = smoothCurrentPeaks[0]
         allProminences = smoothCurrentPeaks[1]['prominences']
         # Remove Peaks Nearby Boundaries
@@ -138,7 +136,7 @@ class bestLinearFit:
     
     def findLinearBaseline(self, reductiveScan):
         # Smooth Current to Remove Extremely Small Peaks
-        smoothCurrent = UnivariateSpline(self.potential, self.current, s=0.0002, k=5)
+        smoothCurrent = UnivariateSpline(self.potential, self.current, s=10E-6, k=5)
         # Find the Peak
         reductiveScale = -(2*reductiveScan - 1)
         peakInd = self.findPeak(smoothCurrent, reductiveScale)
@@ -157,8 +155,8 @@ class bestLinearFit:
             self.linearFit = m0*self.potential + b0
             
             # Piece Together the Current's Baseline
-            baseline = np.concatenate((self.current[0:leftCutInd+1], self.linearFit[leftCutInd+1: rightCutInd], self.current[rightCutInd:len(self.current)]))
-            return baseline
+            self.baseline = np.concatenate((self.current[0:leftCutInd+1], self.linearFit[leftCutInd+1: rightCutInd], self.current[rightCutInd:len(self.current)]))
+            return self.baseline
         # Else, the Baseline is the Potential (No Peak)
         else:
             return self.current
@@ -172,7 +170,7 @@ class bestLinearFit:
         
         plt.figure()
         plt.plot(self.potential, self.current, label = "True Data")
-        plt.plot(self.potential, self.backgroundInterp(self.potential), label="Baseline Current")
+        plt.plot(self.potential, self.baseline, label="Baseline Current")
         plt.show()
         
 
