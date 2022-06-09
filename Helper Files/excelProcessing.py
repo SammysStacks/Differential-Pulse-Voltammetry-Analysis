@@ -119,12 +119,12 @@ class processFiles(dataProcessing):
                 elif cellVal.startswith("ip = "):
                     peakCurrent = float(cellVal.split(" = ")[-1][:-1])
                     peakCurrentList.append(peakCurrent)
-                elif cellVal == "Potential/V":
+                elif "Potential/V" in cellVal:
                     next(rowGenerator) # Skip Over Empty Cell After Title
                     findStart = False
             else:
                 # Break out of Loop if no More Data (edge effect if someone edits excel)
-                if cell[0].value == None:
+                if cell[0].value == None and len(potential) != 0:
                     break
                 
                 # Find the Potential and Current Data points
@@ -162,6 +162,7 @@ class processFiles(dataProcessing):
 
             # Convert CSV or TXT to XLSX
             excelFile = newFilePath + filename + ".xlsx"
+            print(excelFile)
             xlWorkbook, xlWorksheet = self.convertToExcel(oldFile, excelFile, excelDelimiter = excelDelimiter, overwriteXL = False, testSheetNum = testSheetNum)
         # If the File is Already an Excel File, Just Load the File
         elif oldFile.endswith(".xlsx"):
