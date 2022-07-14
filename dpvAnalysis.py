@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Specify Where the Files are Located
-    dataDirectory = "/Users/samuelsolomon/Desktop/Gao Group/Projects/Dopamine MIP/Dopamine CHI/2022-06-06 Electrodeposition First/Electrode 1/UA Test/"   # The Path to the CHI Data; Must End With '/'
+    dataDirectory = "/Users/samuelsolomon/Desktop/Gao Group/Projects/Dopamine MIP/Dopamine CHI/2022-07-03 Deposition Amount/Analysis/"   # The Path to the CHI Data; Must End With '/'
     
     # Specify Which Files to Read In
     useAllFolderFiles = True # Read in All TXT/CSV/EXCEL Files in the dataDirectory
@@ -60,12 +60,12 @@ if __name__ == "__main__":
         polynomialOrder = 3  # Order of the Polynomial Fit in Baseline Subtraction (Extremely Important to Modify)
     
     # Cut Off Data From the DPV Graph
-    potentialBounds = [0.1, 0.4]   # The [Minimum, Maximum] Potential to Display (If Potential is Greater Than or Equal, Keep the Data)
+    potentialBounds = [0, 0.5]   # The [Minimum, Maximum] Potential to Display (If Potential is Greater Than or Equal, Keep the Data)
     
     # Specify the Plotting Extent
     plotBaselineSteps = False # Display the Baseline as Well as the Final Current After Baseline Subtraction
     # Specify Figure Asthetics
-    numSubPlotsX = 2  # The Number of Plots to Display in Each Row
+    numSubPlotsX = 3  # The Number of Plots to Display in Each Row
     figWidth = 25     # The Figure Width
     figHeight = 13    # The Figure Height
     # Specify Current Units
@@ -172,8 +172,9 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------#
 # --------------------- Plot and Save the Data ------------------------------#
 
-plot.saveSubplot(fig)
+plt.setp(ax, ylim=plot.finalYLim)
 plt.title(fileName+ " DPV Graph") # Need this Line as we Change the Title When we Save Subplots
+plot.saveSubplot(fig)
 plt.show() # Must be the Last Line
 
 sys.exit()

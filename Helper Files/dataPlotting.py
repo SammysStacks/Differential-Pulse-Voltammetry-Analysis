@@ -6,7 +6,6 @@
 # -------------------------------------------------------------------------- #
 # ------------------------- Imported Modules --------------------------------#
 
-import numpy as np
 # Modules to Plot
 import matplotlib.pyplot as plt
 
@@ -22,6 +21,7 @@ class plots:
         self.plotBaselineSteps = plotBaselineSteps
         self.numSubPlotsX = numSubPlotsX
         self.numFiles = numFiles
+        self.finalYLim = [0,0]
     
     def saveplot(self, figure, axisLimits, base):
         # Plot and Save
@@ -64,7 +64,7 @@ class plots:
             for peakNum in range(len(peakCurrents)):
                 Ip = peakCurrents[peakNum]
                 Vp = peakPotentials[peakNum]
-                plt.axvline(x=Vp, ymin=self.normalize(np.argmax(baseline), axisLimits[0], axisLimits[1]), ymax=self.normalize(float(Ip + np.argmax(baseline)), axisLimits[0], axisLimits[1]), linewidth=2, color='tab:red', label="Peak Current " + str(peakNum) + ": " + "%.4g"%Ip)
+                plt.axvline(x=Vp, ymin=self.normalize(0, axisLimits[0], axisLimits[1]), ymax=self.normalize(float(Ip), axisLimits[0], axisLimits[1]), linewidth=2, color='tab:red', label="Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
     
         # Save Figure
         self.saveplot(fig1, axisLimits, fileName)
@@ -90,7 +90,7 @@ class plots:
             for peakNum in range(len(peakCurrents)):
                 Ip = peakCurrents[peakNum]
                 Vp = peakPotentials[peakNum]    
-                currentAxes.axvline(x=Vp, ymin=self.normalize(max(current) - Ip, currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), ymax=self.normalize(max(current), currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), linewidth=2, color='tab:red', label="Peak Current " + str(peakNum) + ": " + "%.4g"%Ip)
+                currentAxes.axvline(x=Vp, ymin=max(current) - Ip, ymax=max(current), linewidth=2, color='tab:red', label="Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
             # Set Legend Location
             currentAxes.legend(loc='upper left')  
         elif not self.plotBaselineSteps:
@@ -99,7 +99,7 @@ class plots:
             for peakNum in range(len(peakCurrents)):
                 Ip = peakCurrents[peakNum]
                 Vp = peakPotentials[peakNum]                
-                currentAxes.axvline(x=Vp, ymin=self.normalize(0, currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), ymax=self.normalize(float(Ip), currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), linewidth=2, color='tab:red', label="Peak Current " + str(peakNum) + ": " + "%.4g"%Ip)
+                currentAxes.vlines(x=Vp, ymin=0, ymax=float(Ip), linewidth=2, color='tab:red', label="Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
             currentAxes.axhline(y = 0, color='tab:red', linestyle='--')
             # Set Legend Location
             currentAxes.legend(loc='upper left')  
@@ -111,12 +111,15 @@ class plots:
             for peakNum in range(len(peakCurrents)):
                 Ip = peakCurrents[peakNum]
                 Vp = peakPotentials[peakNum]   
-            currentAxes.axvline(x=Vp, ymin=self.normalize(baseline[peakInd], currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), ymax=self.normalize(float(Ip+baseline[peakInd]), currentAxes.get_ylim()[0], currentAxes.get_ylim()[1]), linewidth=2, color='tab:red', label="Peak Current " + str(peakNum) + ": " + "%.4g"%Ip)
+            currentAxes.vlines(x=Vp, ymin=baseline[peakInd], ymax=float(Ip+baseline[peakInd]), linewidth=2, color='tab:red', label="Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
             # Set Legend Location
             currentAxes.legend(loc='best')  
     
         currentAxes.set_xlabel("Potential (V)")
         currentAxes.set_ylabel(self.yLabel)
         currentAxes.set_title(fileName)
+        # Find Full Axis Width
+        self.finalYLim[0] = min(self.finalYLim[0], currentAxes.get_ylim()[0])
+        self.finalYLim[1] = max(self.finalYLim[1], currentAxes.get_ylim()[1])
         
         

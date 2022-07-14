@@ -97,6 +97,10 @@ class processFiles(dataProcessing):
             sys.exit()
         
         return dpvFiles
+    
+    class cellObject:
+        def __init__(self, value):
+            self.value = value
 
     def extractCHIData_DPV(self, chiWorksheet):
         
@@ -109,6 +113,12 @@ class processFiles(dataProcessing):
             cellVal = cell[0].value
             if cellVal == None:
                 continue
+            elif ',' in cellVal:
+                cellValues = cellVal.split(",")
+                cell = []
+                for cellValue in cellValues:
+                    cell.append(self.cellObject(cellValue))
+                cellVal = cell[0].value
             
             if findStart:
                 # If Peak Found by CHI, Get Peak Potential
