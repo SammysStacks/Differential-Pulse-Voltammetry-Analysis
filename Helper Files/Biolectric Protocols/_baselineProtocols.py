@@ -1,40 +1,17 @@
 
-"""
-Need to Install in the Python Enviroment Beforehand:
-    $ pip install BaselineRemoval
-"""
+# -------------------------------------------------------------------------- #
+# ------------------------- Imported Modules --------------------------------#
 
-# Import Basic Modules
+# Basic modules
+import scipy
 import numpy as np
-# Import Modules for Baseline Subtraction
+# Baseline subtraction
 from BaselineRemoval import BaselineRemoval
-# Import Modules for Low Pass Filter
-from scipy.signal import savgol_filter
-from scipy.signal import butter, lfilter 
-# Import Modules to Find Peak
-from scipy.interpolate import UnivariateSpline
-import scipy.signal
-# Modules to Plot
+# Plotting
 import matplotlib.pyplot as plt
 
-
 # ---------------------------------------------------------------------------#
-# --------------------- Specify/Find File Names -----------------------------#
-
-class filterData:
-    
-    def butterParams(self, cutoffFreq = [0.1, 7], samplingFreq = 800, order=3, filterType = 'low'):
-        nyq = 0.5 * samplingFreq
-        if filterType == "band":
-            normal_cutoff = [freq/nyq for freq in cutoffFreq]
-        else:
-            normal_cutoff = cutoffFreq / nyq
-        sos = butter(order, normal_cutoff, btype = filterType, analog = False, output='sos')
-        return sos
-    
-    def butterFilter(self, data, cutoffFreq, samplingFreq, order = 3, filterType = 'band'):
-        sos = self.butterParams(cutoffFreq, samplingFreq, order, filterType)
-        return scipy.signal.sosfiltfilt(sos, data)
+# -------------------- Polynomial Baseline Subtraction --------------------- #
 
 class polynomialBaselineFit:
     
@@ -67,6 +44,9 @@ class polynomialBaselineFit:
                     yHold[i] = baseline[i]
         return baseline
         
+# ---------------------------------------------------------------------------#
+# ---------------------- Linear Baseline Subtraction  ---------------------- #
+
 class bestLinearFit2:
     
     def __init__(self):
@@ -79,15 +59,15 @@ class bestLinearFit2:
         # ------------------------- Find the Peaks ------------------------- #
         # Find the Peak
         peakIndices = list(self.findPeak(xData, yData*reductiveScale, deriv=False))      
-        peakIndices.extend(self.findPeak(xData, savgol_filter(yData, 9, 3, deriv=1)*reductiveScale, deriv=True))   
+        peakIndices.extend(self.findPeak(xData, scipy.signal.savgol_filter(yData, 9, 3, deriv=1)*reductiveScale, deriv=True))   
         peakIndices = list(set(peakIndices))
         # Return None if No Peak Found
         if len(peakIndices) == 0:
-            print("No Peak Found in Data")
+            print("\tNo Peak Found in Data")
             return yData
         # Sort the Indices so They Appear 1-by-1
         peakIndices.sort()
-        print("Initial Peak Indices:", peakIndices, xData[peakIndices])
+        print("\tInitial Peak Indices:", peakIndices, xData[peakIndices])
         # ------------------------------------------------------------------ #
 
         # ------------------ Find and Remove the Baseline ------------------ #
@@ -101,7 +81,7 @@ class bestLinearFit2:
             peakIndCuts.extend([leftCutInd, rightCutInd])
         
         if len(finalIndices) == 0:
-            print("No Baseline Data Found")
+            print("\tNo Baseline Data Found")
             return yData
         # ------------------------------------------------------------------ #
         
@@ -153,16 +133,13 @@ class bestLinearFit2:
     def findPeak(self, xData, yData, ignoredBoundaryPoints = 5, deriv = False):
         # Find All Peaks in the Data
         peakInfo = scipy.signal.find_peaks(yData, prominence=10E-10, distance = 5)
-        # Extract the Peak Information
-        peakProminences = peakInfo[1]['prominences']
-        peakIndices = peakInfo[0]
         
         # Remove Peaks Nearby Boundaries
-        allProminences = peakProminences[np.logical_and(peakIndices < len(xData) - ignoredBoundaryPoints, peakIndices >= ignoredBoundaryPoints)]
+        peakIndices = peakInfo[0]
         peakIndices = peakIndices[np.logical_and(peakIndices < len(xData) - ignoredBoundaryPoints, peakIndices >= ignoredBoundaryPoints)]
 
         if len(peakIndices) == 0 and not deriv:
-            filteredVelocity = savgol_filter(yData, 9, 3, deriv=1)
+            filteredVelocity = scipy.signal.savgol_filter(yData, 9, 3, deriv=1)
             return self.findPeak(xData, filteredVelocity, ignoredBoundaryPoints, deriv = True)
         # If No Peak is Found, Return None
         return peakIndices
@@ -192,7 +169,7 @@ class bestLinearFit2:
                 lineSlope = (yData[leftInd] - yData[rightInd])/(xData[leftInd] - xData[rightInd])
                 slopeIntercept = yData[leftInd] - lineSlope*xData[leftInd]
                 linearFit = lineSlope*xDataCut + slopeIntercept
-    
+
                 # Find the Number of Points Above the Tangent Line
                 numWrongSideOfTangent = len(linearFit[linearFit - yDataCut > 0])
                 
@@ -209,6 +186,9 @@ class bestLinearFit2:
             if len(goodTangentInd[goodInd]) != 0:
                 return max(goodTangentInd[goodInd], key=lambda tangentPair: tangentPair[1]-tangentPair[0])
         return None, None
+
+# ---------------------------------------------------------------------------#
+# ---------------------- Linear Baseline Subtraction  ---------------------- #
 
 class bestLinearFit:
     
@@ -282,7 +262,7 @@ class bestLinearFit:
     
     def findLinearBaseline(self, reductiveScan):
         # Smooth Current to Remove Extremely Small Peaks
-        smoothCurrent = UnivariateSpline(self.potential, self.current, s=10E-6, k=5)
+        smoothCurrent = scipy.signal.UnivariateSpline(self.potential, self.current, s=10E-6, k=5)
         # Find the Peak
         reductiveScale = -(2*reductiveScan - 1)
         peakInd = self.findPeak(smoothCurrent, reductiveScale)

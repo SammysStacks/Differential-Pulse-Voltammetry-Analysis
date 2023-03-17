@@ -1,15 +1,13 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Need to Install on the Anaconda Prompt:
-    $ pip install pyexcel
-"""
 
+# -------------------------------------------------------------------------- #
+# ---------------------------- Imported Modules ---------------------------- #
 
 # Basic Modules
 import os
 import sys
 import numpy as np
+import pandas as pd
+from natsort import natsorted
 # Read/Write to Excel
 import csv
 import pyexcel
@@ -54,49 +52,71 @@ class dataProcessing:
                         out_writer.writerow(row)
     
     def convertToExcel(self, inputFile, excelFile, excelDelimiter = ",", overwriteXL = False, testSheetNum = 0):
-        """
-        inputFile: The Input TXT/CSV File to Convert XLSX
-        excelFile: The Output Excel File Name (XLSX)
-        """
         # If the File is Not Already Converted: Convert the CSV to XLSX
         if not os.path.isfile(excelFile) or overwriteXL:
-            # Make Excel WorkBook
-            xlWorkbook = xl.Workbook()
-            xlWorksheet = xlWorkbook.active
-            # Write the Data from the CSV File to the Excel WorkBook
-            with open(inputFile, "r") as inputData:
-                inReader = csv.reader(inputData, delimiter = excelDelimiter)
-                with open(excelFile, 'w+', newline='') as newFile:
-                    for row in inReader:
-                        xlWorksheet.append(row)
-            # Save as New Excel File
-            xlWorkbook.save(excelFile)
-        # Else Load the GSR Data from the Excel File
+            if excelDelimiter == "fixedWidth":
+                df = pd.read_fwf(inputFile)
+                df.drop(index=0, inplace=True) # drop the underlines
+                df.to_excel(excelFile, index=False)
+                # Load the Data from the Excel File
+                xlWorkbook = xl.load_workbook(excelFile, data_only=True, read_only=True)
+                xlWorksheets = xlWorkbook.worksheets[testSheetNum:]
+            else:
+                # Make Excel WorkBook
+                xlWorkbook = xl.Workbook()
+                xlWorksheet = xlWorkbook.active
+                # Write the Data from the CSV File to the Excel WorkBook
+                with open(inputFile, "r") as inputData:
+                    inReader = csv.reader(inputData, delimiter = excelDelimiter)
+                    with open(excelFile, 'w+', newline=''):
+                        for row in inReader:
+                            xlWorksheet.append(row)    
+                # Save as New Excel File
+                xlWorkbook.save(excelFile)
+                xlWorksheets = [xlWorksheet]
+        # Else Load the Data from the Excel File
         else:
-            # Load the GSR Data from the Excel File
+            # Load the Data from the Excel File
             xlWorkbook = xl.load_workbook(excelFile, data_only=True, read_only=True)
-            xlWorksheet = xlWorkbook.worksheets[testSheetNum]
+            xlWorksheets = xlWorkbook.worksheets[testSheetNum:]
         
         # Return Excel Sheet
-        return xlWorkbook, xlWorksheet
+        return xlWorkbook, xlWorksheets
     
 
 class processFiles(dataProcessing):
     
-    def getFiles(self, dataDirectory, fileDoesntContain, fileContains):
-        # If Using All the CSV Files in the Folder
-        dpvFiles = []; filesAdded = set();
+    def getFiles(self, dataDirectory, removeFilesContaining, analyzeFilesContaining):
+        # Setup parameters
+        analysisFiles = []; filesAdded = set();
+        
+        # For each file in the directory
         for fileName in os.listdir(dataDirectory):
             fileBase = os.path.splitext(fileName)[0]
-            if fileName.endswith((".txt",'csv','xlsx')) and fileDoesntContain not in fileName and fileContains in fileName and fileBase not in filesAdded:
-                dpvFiles.append(fileName)
+            
+            # Do not analyze files with a certain substring in the name.
+            for substring in removeFilesContaining:
+                if substring in fileName:
+                    continue
+            # Only analyze files with a certain substring in the name.
+            for substring in analyzeFilesContaining:
+                if substring not in fileName:
+                    continue            
+            
+            # Keep track of previously unseen analysis files.
+            if fileName.endswith((".txt",'csv','xlsx')) and fileBase not in filesAdded:
+                analysisFiles.append(dataDirectory + fileName)
                 filesAdded.add(fileBase)
-        if len(dpvFiles) == 0:
-            print("No TXT/CSV/XLSX Files Found in the Data Folder:", dataDirectory)
-            print("Found the Following Files:", os.listdir(dataDirectory))
-            sys.exit()
         
-        return dpvFiles
+        # If not analysis files found.s
+        if len(analysisFiles) == 0:
+            # Stop the program.
+            print("Found the Following Files:", os.listdir(dataDirectory))
+            sys.exit("No TXT/CSV/XLSX Files Found in the Data Folder: " + dataDirectory)
+        
+        # Sort the files and return them
+        analysisFiles = natsorted(analysisFiles)
+        return analysisFiles
     
     class cellObject:
         def __init__(self, value):
@@ -155,11 +175,11 @@ class processFiles(dataProcessing):
             oldFile: The Path to the Excel File Containing the Data: txt, csv, xls, xlsx
             testSheetNum: An Integer Representing the Excel Worksheet (0-indexed) Order.
         --------------------------------------------------------------------------
-        """
+        """ 
+        
         # Check if File Exists
         if not os.path.exists(oldFile):
-            print("The following Input File Does Not Exist:", oldFile)
-            sys.exit()
+            sys.exit("\nThe following Input File Does Not Exist: " + oldFile)
 
         # Convert TXT and CSV Files to XLSX
         if oldFile.endswith((".txt", ".csv")):
@@ -172,33 +192,23 @@ class processFiles(dataProcessing):
 
             # Convert CSV or TXT to XLSX
             excelFile = newFilePath + filename + ".xlsx"
-            print(excelFile)
             xlWorkbook, xlWorksheet = self.convertToExcel(oldFile, excelFile, excelDelimiter = excelDelimiter, overwriteXL = False, testSheetNum = testSheetNum)
         # If the File is Already an Excel File, Just Load the File
         elif oldFile.endswith(".xlsx"):
             excelFile = oldFile
             # Load the GSR Data from the Excel File
             xlWorkbook = xl.load_workbook(excelFile, data_only=True, read_only=True)
-            xlWorksheet = xlWorkbook.worksheets[testSheetNum]
+            xlWorksheet = xlWorkbook.worksheets[testSheetNum:]
         else:
-            print("The Following File is Neither CSV, TXT, Nor XLSX:", excelFile)
-            sys.exit()
+            sys.exit("\nThe Following File is Neither CSV, TXT, Nor XLSX: " + excelFile)
         
         # Extract the Data
-        print("Extracting Data from the Excel File:", excelFile)
-        potential, current, peakPotentialList, peakCurrentList = self.extractCHIData_DPV(xlWorksheet)
+        print("\nExtracting Data from the Excel File:", excelFile)
+        potential, current, peakPotentialList, peakCurrentList = self.extractCHIData_DPV(xlWorksheet[0])
         
         xlWorkbook.close()
         # Finished Data Collection: Close Workbook and Return Data to User
-        print("Done Collecting Data");
         return potential, current, peakPotentialList, peakCurrentList
-
-
-if __name__ == "__main__":
-    
-    inputFile = './diffusion_4.txt'
-    processFiles().getData(inputFile)
-    
     
     
     

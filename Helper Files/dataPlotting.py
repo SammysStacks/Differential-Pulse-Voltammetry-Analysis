@@ -1,12 +1,10 @@
 
-"""
-
-"""
-
 # -------------------------------------------------------------------------- #
 # ------------------------- Imported Modules --------------------------------#
 
-# Modules to Plot
+# General modules
+import os
+# Modules to plot
 import matplotlib.pyplot as plt
 
 # -------------------------------------------------------------------------- #
@@ -15,13 +13,19 @@ import matplotlib.pyplot as plt
 class plots:
     
     def __init__(self, yLabel, outputDirectory, useCHIPeaks, plotBaselineSteps, numSubPlotsX, numFiles):
-        self.yLabel = yLabel
-        self.outputDirectory = outputDirectory
-        self.useCHIPeaks = useCHIPeaks
+        # Create Output Folder if the One Given Does Not Exist
+        outputDirectory = outputDirectory + "DPV Analysis/"
+        os.makedirs(outputDirectory, exist_ok = True)
+        
+        # Save instance variables.
         self.plotBaselineSteps = plotBaselineSteps
+        self.outputDirectory = outputDirectory
         self.numSubPlotsX = numSubPlotsX
+        self.useCHIPeaks = useCHIPeaks
         self.numFiles = numFiles
         self.finalYLim = [0,0]
+        self.yLabel = yLabel
+
     
     def saveplot(self, figure, axisLimits, base):
         # Plot and Save
