@@ -15,9 +15,9 @@ import matplotlib.pyplot as plt
 
 class polynomialBaselineFit:
     
-    def baselineSubtractionAPI(self, current, polynomialOrder, reductiveScan):
+    def baselineSubtractionAPI(self, current, polynomialOrder, reductiveScale):
         # Get Baseline Depending on Ox/Red Curve
-        if reductiveScan:
+        if reductiveScale == -1:
             baseObj = BaselineRemoval(-current)
             baseline = current + baseObj.ModPoly(polynomialOrder)
         else:
@@ -26,8 +26,8 @@ class polynomialBaselineFit:
         # Return Baseline
         return baseline
     
-    def baselineSubtraction(self, potential, current, polynomialOrder, Iterations, reductiveScan):
-        if reductiveScan:
+    def baselineSubtraction(self, potential, current, polynomialOrder, Iterations, reductiveScale):
+        if reductiveScale == -1:
             baseline = - self.getBaseline(potential, -current, Iterations, polynomialOrder)
         else:
             baseline = self.getBaseline(potential, current, Iterations, polynomialOrder)
@@ -53,13 +53,12 @@ class bestLinearFit2:
         self.minPeakDuration = 10
         self.minLeftBoundaryInd = 0
     
-    def findBaseline(self, xData, yData, reductiveScan):
+    def findBaseline(self, xData, yData):
         
-        reductiveScale = -(2*reductiveScan - 1)
         # ------------------------- Find the Peaks ------------------------- #
         # Find the Peak
-        peakIndices = list(self.findPeak(xData, yData*reductiveScale, deriv=False))      
-        peakIndices.extend(self.findPeak(xData, scipy.signal.savgol_filter(yData, 9, 3, deriv=1)*reductiveScale, deriv=True))   
+        peakIndices = list(self.findPeak(xData, yData, deriv=False))      
+        peakIndices.extend(self.findPeak(xData, scipy.signal.savgol_filter(yData, 9, 3, deriv=1), deriv=True))   
         peakIndices = list(set(peakIndices))
         # Return None if No Peak Found
         if len(peakIndices) == 0:
@@ -260,11 +259,10 @@ class bestLinearFit:
         return None, None
         
     
-    def findLinearBaseline(self, reductiveScan):
+    def findLinearBaseline(self, reductiveScale):
         # Smooth Current to Remove Extremely Small Peaks
         smoothCurrent = scipy.signal.UnivariateSpline(self.potential, self.current, s=10E-6, k=5)
         # Find the Peak
-        reductiveScale = -(2*reductiveScan - 1)
         peakInd = self.findPeak(smoothCurrent, reductiveScale)
         print(peakInd)
         

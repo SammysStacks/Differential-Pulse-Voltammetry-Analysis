@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Input data information
-    dataDirectory = os.path.dirname(__file__) + "/Data/Example Data/"   # Specify the data folder with the CHI files. Must end with '/'.
+    dataDirectory = os.path.dirname(__file__) + "/Data/Test SWV/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
     analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     useBaselineSubtraction = False # Perform iterative polynomial subtraction to find the baseline of the peak. YOU MUST OPTIMIZE 'polynomialOrder'
     
     # Specify information about the potential/current being read in.
-    potentialBounds = [-1, 1]   # The [minimum, maximum] potential to consider in this analysis.
+    potentialBounds = [None, None]   # The [minimum, maximum] potential to consider in this analysis.
     scaleCurrent = 10**6        # You should scale all current as low values are not recorded well.
     yLabel = "Current (uAmps)"  # The units of the Y-Axis values.
 
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         polynomialOrder = 3     # Order of the polynomial fit in baseline subtraction (Extremely important to modify)
 
     # Specify the Plotting Extent
-    plotBaselineSteps = False   # Display the Baseline as Well as the Final Current After Baseline Subtraction
+    plotBaselineSteps = True   # Display the Baseline as Well as the Final Current After Baseline Subtraction
     numSubPlotsX = 3            # The Number of Plots to Display in Each Row
 
     # ---------------------------------------------------------------------- #
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     # Get file information
     extractData = excelProcessing.processFiles()
     analysisFiles = extractData.getFiles(dataDirectory, removeFilesContaining, analyzeFilesContaining)
-
+        
     # Create plot for all the curves.
     numSubPlotsX = min(len(analysisFiles), numSubPlotsX)
     plot = dataPlotting.plots(yLabel, dataDirectory, useCHIPeaks, plotBaselineSteps, numSubPlotsX, len(analysisFiles))
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
         # ----------------------- Extract the Data --------------------------#
         # Extract the Data/File Information from the File (Potential, Current)
-        potential, current, peakPotentialList, peakCurrentList = extractData.getData(analysisFile, dataDirectory, testSheetNum = 0, excelDelimiter = "\t")
+        potential, current, peakPotentialList, peakCurrentList = extractData.getData(analysisFile, dataDirectory, testSheetNum = 0, excelDelimiter = ",")        
         # Scale and Cull the Data
         current = current*scaleCurrent
         if None not in potentialBounds:
@@ -98,6 +98,7 @@ if __name__ == "__main__":
         # Determine Whether the Data is Oxidative or Reductive
         numNeg = sum(1 for currentVal in current if currentVal < 0)
         reductiveScan = numNeg > len(current)/2
+        reductiveScale = -(2*reductiveScan - 1)
         
         # ---------------------- Get DPV Baseline ---------------------------#
         # Apply a Low Pass Filter
@@ -105,10 +106,10 @@ if __name__ == "__main__":
         
         # Perform Iterative Polynomial Subtraction
         if useBaselineSubtraction:
-            baseline, baselineCurrent, peakIndices = dpvProtocols.useBaselineSubtraction(current, potential, polynomialOrder, reductiveScan)
+            baseline, baselineCurrent, peakIndices = dpvProtocols.useBaselineSubtraction(current, potential, polynomialOrder, reductiveScale)
         # Find Optimal Linear Baseline Under Peak
         elif useLinearFit:
-            baseline, baselineCurrent, peakIndices = dpvProtocols.useLinearFit(current, potential, reductiveScan)
+            baseline, baselineCurrent, peakIndices = dpvProtocols.useLinearFit(current, potential, reductiveScale)
         # At This Point, You BETTER be Getting the Peaks from the CHI File 
         elif not useCHIPeaks:
             sys.exit("Please Specify a DPV Peak Detection Mechanism")

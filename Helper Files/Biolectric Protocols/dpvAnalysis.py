@@ -26,10 +26,10 @@ class dpvProtocols:
         # Define filtering class
         self.filteringMethods = filteringMethods.filteringMethods()
     
-    def useBaselineSubtraction(self, current, potential, polynomialOrder, reductiveScan):
+    def useBaselineSubtraction(self, current, potential, polynomialOrder, reductiveScale):
         # Get Baseline from Iterative Polynomial Subtraction
         polynomialBaselineFit = _baselineProtocols.polynomialBaselineFit()
-        baseline = polynomialBaselineFit.baselineSubtractionAPI(current, polynomialOrder, reductiveScan)
+        baseline = polynomialBaselineFit.baselineSubtractionAPI(current, polynomialOrder, reductiveScale)
         # Find Current After Baseline Subtraction
         baselineCurrent = current - baseline
         
@@ -45,14 +45,14 @@ class dpvProtocols:
         
         return baseline, baselineCurrent, peakIndices
             
-    def useLinearFit(self, current, potential, reductiveScan):
+    def useLinearFit(self, current, potential, reductiveScale):
         # Get Baseline from Iterative Polynomial Subtraction
         linearBaselineFit = _baselineProtocols.bestLinearFit2()
         # Remove the baseline from the data
-        baseline = linearBaselineFit.findBaseline(potential, current, reductiveScan)
+        baseline = linearBaselineFit.findBaseline(potential, current*reductiveScale)*reductiveScale
         baselineCurrent = current - baseline
         # Find the Peak Current After Baseline Subtraction
-        peakIndices = linearBaselineFit.findPeakGeneral(potential, baselineCurrent)
+        peakIndices = linearBaselineFit.findPeakGeneral(potential, baselineCurrent*reductiveScale)
         
         return baseline, baselineCurrent, peakIndices
         
