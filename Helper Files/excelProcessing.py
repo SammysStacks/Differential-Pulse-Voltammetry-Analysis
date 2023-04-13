@@ -12,37 +12,52 @@ from natsort import natsorted
 import csv
 import pyexcel
 import openpyxl as xl
+from openpyxl import load_workbook, Workbook
+# Openpyxl Styles
+from openpyxl.styles import Alignment
+from openpyxl.styles import Font
 
-class dataProcessing:        
+class handlingExcelFormat:   
+
+    def __init__(self):
+        # Hardcoded sheetnames for different types of excel information
+        self.emptySheetName = "empty"
+        self.peakInfo_SheetName = "Signal Data; File 0"
+        self.signalData_Sheetname = "Peak Info; File 0"
         
-    def xls2xlsx(self, excelFile, outputFolder):
+        # Excel parameters
+        self.maxAddToexcelSheet = 1048500  # Max Rows in a Worksheet
+        
+    def convertToXLSX(self, inputExcelFile):
         """
         Converts .xls Files to .xlsx Files That OpenPyxl Can Read
         If the File is Already a .xlsx Files, Do Nothing
         If the File is Neither a .xls Nor .xlsx, it Exits the Program
         """
         # Check That the Current Extension is .xls or .xlsx
-        _, extension = os.path.splitext(excelFile)
+        _, extension = os.path.splitext(inputExcelFile)
         # If the Extension is .xlsx, the File is Ready; Do Nothing
         if extension == '.xlsx':
-            return excelFile
+            return inputExcelFile
         # If the Extension is Not .xls/.xlsx, Then the Data is in the Wrong Format; Exit Program
         if extension not in ['.xls', '.xlsx']:
             print("Cannot Convert File to .xlsx")
             sys.exit()
         
         # Create Output File Directory to Save Data ONLY If None Exists
-        os.makedirs(outputFolder, exist_ok = True)
-        # Convert '.xls' to '.xlsx'
-        filename = os.path.basename(excelFile)
-        newExcelFile = outputFolder + filename + "x"
-        pyexcel.save_as(file_name = excelFile, dest_file_name = newExcelFile, logfile=open(os.devnull, 'w'))
+        newExcelFolder = os.path.dirname(inputExcelFile) + "/Excel Files/"
+        os.makedirs(newExcelFolder, exist_ok = True)
         
-        # Return New Excel File Name
+        # Convert '.xls' to '.xlsx'
+        filename = os.path.basename(inputExcelFile)
+        newExcelFile = newExcelFolder + filename + "x"
+        pyexcel.save_as(file_name = inputExcelFile, dest_file_name = newExcelFile, logfile=open(os.devnull, 'w'))
+        
+        # Save New Excel name
         return newExcelFile
     
     def txt2csv(self, txtFile, csvFile, csvDelimiter = ",", overwriteCSV = False):
-        # Check to See if CSV Conversion Alreayd Occurred
+        # Check to see if csv conversion alreayd happened
         if not os.path.isfile(csvFile) or overwriteCSV:
             with open(txtFile, "r") as inputData:
                 in_reader = csv.reader(inputData, delimiter = csvDelimiter)
@@ -83,8 +98,40 @@ class dataProcessing:
         # Return Excel Sheet
         return xlWorkbook, xlWorksheets
     
+    def splitExcelSheetsToExcelFiles(self, inputFile):
+        wb = load_workbook(filename=inputFile)
+        
+        for sheet in wb.worksheets:
+            new_wb = Workbook()
+            ws = new_wb.active
+            for row_data in sheet.iter_rows():
+                for row_cell in row_data:
+                    ws[row_cell.coordinate].value = row_cell.value
+        
+            new_wb.save('{0}.xlsx'.format(sheet.title))
+    
+    def addExcelAesthetics(self, worksheet):
+        # Initialize variables
+        align = Alignment(horizontal='center',vertical='center',wrap_text=True) 
+        
+        # Loop through each header cell
+        for headerCell in worksheet[1]:
+            column_cells = worksheet[headerCell.column_letter]
+            
+            # Set the column width
+            length = max(len(str(cell.value) if cell.value else "") for cell in column_cells)
+            worksheet.column_dimensions[headerCell.column_letter].width = max(length, worksheet.column_dimensions[headerCell.column_letter].width)
+            worksheet.column_dimensions[headerCell.column_letter].bestFit = True
+            # Center the Data in the Cells
+            for cell in column_cells:
+                cell.alignment = align
+            # Set the header text color
+            headerCell.font = Font(color='00FF0000', italic=True, bold=True)
+        
+        return worksheet
+    
 
-class processFiles(dataProcessing):
+class processFiles(handlingExcelFormat):
     
     def getFiles(self, dataDirectory, removeFilesContaining, analyzeFilesContaining):
         # Setup parameters
@@ -209,6 +256,110 @@ class processFiles(dataProcessing):
         xlWorkbook.close()
         # Finished Data Collection: Close Workbook and Return Data to User
         return potential, current, peakPotentialList, peakCurrentList
+
+class saveExcelData(handlingExcelFormat):
     
+    def getExcelDocument(self, excelFile, overwriteSave = False):
+        # If the excel file you are saving already exists.
+        if os.path.isfile(excelFile):
+            # If You Want to Overwrite the Excel.
+            if overwriteSave:
+                print("\t\tDeleting Old Excel Workbook")
+                os.remove(excelFile) 
+            else:
+                print("\t\tNot overwriting the file ... but your file already exists??")
+            
+        # If the File is Not Present: Create The Excel File
+        if not os.path.isfile(excelFile):
+            print("\t\tCreating New Excel Workbook")
+            # Make Excel WorkBook
+            WB = xl.Workbook()
+            worksheet = WB.active 
+            worksheet.title = self.emptySheetName
+        else:
+            print("\t\tExcel File Already Exists. Adding New Sheet to File")
+            WB = xl.load_workbook(excelFile, read_only=False)
+            worksheet = WB.create_sheet(self.emptySheetName)
+        return WB, worksheet
     
+    def saveDataDPV(self, peakInfoHolder, dataHeaders, saveExcelPath):
+        print("Saving the Data")
+        # ------------------------------------------------------------------ #
+        # -------------------- Setup the excel document -------------------- #
+        # Create the path to save the excel file.
+        os.makedirs(os.path.dirname(saveExcelPath), exist_ok=True) # Create Output File Directory to Save Data: If None Exists
+        
+        # Get the excel document.
+        WB, worksheet = self.getExcelDocument(saveExcelPath, overwriteSave = False)
+        
+        # ------------------------------------------------------------------ #
+        # ---------------------- Add data to document ---------------------- #   
+        
+        
+        headers = ["Cycle Number"]
+        # Add a header label for each peak
+        peakTypes = ["Oxidation", "Reduction"]
+        for reductiveScan in range(len(peakInfoHolder)):
+            peakType = peakTypes[reductiveScan]
+            for peakNum in range(len(peakInfoHolder[reductiveScan])):
+                peakInfoString = peakType + " Peak " + str(peakNum)
+                headers.extend([peakInfoString + " Potential (V)", peakInfoString + " Current (uAmps)", ""])
+        WB_worksheet.append(headers)
+        
+        # Organize and save the data
+        for frameNum in range(len(peakInfoHolder[0][0])):
+            frameData = [frameNum+1]
+            for reductiveScan in range(len(peakInfoHolder)):
+                for peakNum in range(len(peakInfoHolder[reductiveScan])):
+                    
+                    Ip = peakInfoHolder[reductiveScan][peakNum][frameNum][1]
+                    Ep = peakInfoHolder[reductiveScan][peakNum][frameNum][0]
+                    frameData.extend([Ep, Ip, ""])
+
+            # Write the Data to Excel
+            WB_worksheet.append(frameData)
+            
+            
+        # Get the Header for the Data
+        header = ["Potential (V)"]
+        header.extend([dataHeader.capitalize() for dataHeader in dataHeaders])
+        
+        # Loop through/save all the data in batches of maxAddToexcelSheet.
+        for firstIndexInFile in range(0, len(timePoints), self.maxAddToexcelSheet):
+            startTimer = timer.time()
+            # Add the information to the page
+            worksheet.title = self.rawSignals_Sheetname
+            worksheet.append(header)  # Add the header labels to this specific file.
+                        
+            # Loop through all data to be saved within this sheet in the excel file.
+            for dataInd in range(firstIndexInFile, min(firstIndexInFile+self.maxAddToexcelSheet, len(timePoints))):
+                # Organize all the data
+                row = [timePoints[dataInd]]
+                row.extend([dataCol[dataInd] for dataCol in signalData])
+                
+                # Add the row to the worksheet
+                worksheet.append(row)
+    
+            # Finalize document
+            worksheet = self.addExcelAesthetics(worksheet) # Add Excel Aesthetics
+            worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
+            
+            # If I need to use another sheet
+            if firstIndexInFile + self.maxAddToexcelSheet < len(timePoints):
+                # Keep track of how long it is taking.
+                endTimer = timer.time()
+                numberOfSheetsLeft = 1+(len(timePoints) - firstIndexInFile - self.maxAddToexcelSheet)//self.maxAddToexcelSheet
+                timeRemaining = (endTimer - startTimer)*numberOfSheetsLeft
+                print("\tEstimated Time Remaining " + str(timeRemaining) + " seconds; Excel Sheets Left to Add: " + str(numberOfSheetsLeft))
+        # Remove empty page
+        if worksheet.title == self.emptySheetName:
+            WB.remove(worksheet)
+        
+        # ------------------------------------------------------------------ #
+        # ------------------------ Save the document ----------------------- #  
+        # Save as New Excel File
+        WB.save(saveExcelPath)
+        WB.close()
+    
+
     

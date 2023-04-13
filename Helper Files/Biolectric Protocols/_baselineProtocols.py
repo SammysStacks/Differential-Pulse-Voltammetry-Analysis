@@ -51,7 +51,6 @@ class bestLinearFit2:
     
     def __init__(self):
         self.minPeakDuration = 10
-        self.minLeftBoundaryInd = 0
     
     def findBaseline(self, xData, yData):
         
@@ -154,10 +153,10 @@ class bestLinearFit2:
         maxBadPointsTotal = int(len(xData)/10)
         # Store Possibly Good Tangent Indexes
         goodTangentInd = [[] for _ in range(maxBadPointsTotal)]
-        
+                
         # For Each Index Pair on the Left and Right of the Peak
         for rightInd in range(peakInd+2, len(yData), 1):
-            for leftInd in range(peakInd-2, self.minLeftBoundaryInd, -1):
+            for leftInd in range(peakInd-2, -1, -1):
                 
                 # Initialize range of data to check
                 checkPeakBuffer = 0#int((rightInd - leftInd)/4)

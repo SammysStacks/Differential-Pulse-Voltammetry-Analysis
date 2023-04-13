@@ -20,9 +20,6 @@ import _filteringProtocols as filteringMethods # Import Files with Filtering Met
 class dpvProtocols:
     
     def __init__(self):
-        # General parameters
-        self.minPeakDuration = 5 # minimum seconds of a peak
-        
         # Define filtering class
         self.filteringMethods = filteringMethods.filteringMethods()
     

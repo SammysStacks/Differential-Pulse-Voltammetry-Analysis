@@ -33,20 +33,19 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Input data information
-    dataDirectory = os.path.dirname(__file__) + "/Data/Test SWV/"   # Specify the data folder with the CHI files. Must end with '/'.
+    dataDirectory = os.path.dirname(__file__) + "/Data/Example Data/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
     analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.
 
     # Specify the analysis protocol
-    useCHIPeaks = False            # Use CHI calculated peaks. The peak information must be in the file.
-    useLinearFit = True            # Fit a linear baseline to the peak and subtract off the baseline.
-    useBaselineSubtraction = False # Perform iterative polynomial subtraction to find the baseline of the peak. YOU MUST OPTIMIZE 'polynomialOrder'
+    useCHIPeaks = False             # DEPRECATED (ASK SAM FOR USE). Use CHI calculated peaks. The peak information must be in the file.
+    useLinearFit = True             # Fit a linear baseline to the peak and subtract off the baseline.
+    useBaselineSubtraction = False  # Perform iterative polynomial subtraction to find the baseline of the peak. YOU MUST OPTIMIZE 'polynomialOrder'
     
     # Specify information about the potential/current being read in.
-    potentialBounds = [None, None]   # The [minimum, maximum] potential to consider in this analysis.
-    scaleCurrent = 10**6        # You should scale all current as low values are not recorded well.
-    yLabel = "Current (uAmps)"  # The units of the Y-Axis values.
+    potentialBounds = [None, None]  # The [minimum, maximum] potential to consider in this analysis.
+    scaleCurrent = 10**6            # You should scale all current as low values are not recorded well.
 
     # ---------------------------------------------------------------------- #
     
@@ -58,8 +57,7 @@ if __name__ == "__main__":
         polynomialOrder = 3     # Order of the polynomial fit in baseline subtraction (Extremely important to modify)
 
     # Specify the Plotting Extent
-    plotBaselineSteps = True   # Display the Baseline as Well as the Final Current After Baseline Subtraction
-    numSubPlotsX = 3            # The Number of Plots to Display in Each Row
+    numSubPlotsX = 3  # The Number of Plots to Display in Each Row
 
     # ---------------------------------------------------------------------- #
     # ------------------------- Preparation Steps -------------------------- #
@@ -67,10 +65,10 @@ if __name__ == "__main__":
     # Get file information
     extractData = excelProcessing.processFiles()
     analysisFiles = extractData.getFiles(dataDirectory, removeFilesContaining, analyzeFilesContaining)
-        
+    
     # Create plot for all the curves.
     numSubPlotsX = min(len(analysisFiles), numSubPlotsX)
-    plot = dataPlotting.plots(yLabel, dataDirectory, useCHIPeaks, plotBaselineSteps, numSubPlotsX, len(analysisFiles))
+    plot = dataPlotting.plots(dataDirectory, useCHIPeaks, numSubPlotsX, len(analysisFiles))
     fig, ax = plt.subplots(math.ceil(len(analysisFiles)/numSubPlotsX), numSubPlotsX, sharey=False, sharex = True, figsize=(25, 13))
     fig.tight_layout(pad = 3.0)
     
@@ -88,12 +86,12 @@ if __name__ == "__main__":
 
         # ----------------------- Extract the Data --------------------------#
         # Extract the Data/File Information from the File (Potential, Current)
-        potential, current, peakPotentialList, peakCurrentList = extractData.getData(analysisFile, dataDirectory, testSheetNum = 0, excelDelimiter = ",")        
+        potential, current, peakPotentials, peakCurrents = extractData.getData(analysisFile, dataDirectory, testSheetNum = 0, excelDelimiter = ",")        
         # Scale and Cull the Data
         current = current*scaleCurrent
-        if None not in potentialBounds:
-            current = current[np.logical_and(potentialBounds[0] <= potential, potential <= potentialBounds[1])]
-            potential = potential[np.logical_and(potentialBounds[0] <= potential, potential <= potentialBounds[1])]
+        # Only consider data within the provided bounds. If no bounds provided, use all the data.
+        current = current[np.logical_and((potentialBounds[0] or -np.inf) <= potential, potential <= (potentialBounds[1] or np.inf))]
+        potential = potential[np.logical_and((potentialBounds[0] or -np.inf) <= potential, potential <= (potentialBounds[1] or np.inf))]
         
         # Determine Whether the Data is Oxidative or Reductive
         numNeg = sum(1 for currentVal in current if currentVal < 0)
@@ -115,15 +113,14 @@ if __name__ == "__main__":
             sys.exit("Please Specify a DPV Peak Detection Mechanism")
         
         # Find the peak information
-        peakCurrents = baselineCurrent[peakIndices]
-        peakPotentials = potential[peakIndices]
+        if not useCHIPeaks:
+            peakCurrents = baselineCurrent[peakIndices]
+            peakPotentials = potential[peakIndices]
     
         # ----------------- Save and plot DPV Analysis ----------------------#
         
-        # Plot the Current Files Results
-        plot.plotResults(potential, current, baseline, baselineCurrent, peakCurrents, peakPotentials, fileName)
-        # Plot the Combined Full Results Showing Each Step
-        plot.plotFullResults(potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, ax, fileNum, fileName)
+        # Plot the results
+        plot.plotResults(potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, ax, fileNum, fileName)
 
         # Save Data in a Dictionary for Plotting Later
         data[fileName] = {}
@@ -166,7 +163,7 @@ if not useCHIPeaks:
     # Plot Curves
     plt.title("DPV Current After Baseline Subtraction")
     plt.xlabel("Potential (V)")
-    plt.ylabel(yLabel)
+    plt.ylabel("Current (uAmps)")
     lgd = plt.legend(loc=9, bbox_to_anchor=(1.29, 1))
     plt.savefig(outputDirectory + "Time Dependant DPV Curve Norepinephrine Full Curve Smooth.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
     plt.show()

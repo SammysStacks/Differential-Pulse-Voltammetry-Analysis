@@ -13,19 +13,19 @@ import matplotlib.pyplot as plt
 
 class plots:
     
-    def __init__(self, yLabel, outputDirectory, useCHIPeaks, plotBaselineSteps, numSubPlotsX, numFiles):
+    def __init__(self, outputDirectory, useCHIPeaks, numSubPlotsX, numFiles):
         # Create Output Folder if the One Given Does Not Exist
         outputDirectory = outputDirectory + "DPV Analysis/"
         os.makedirs(outputDirectory, exist_ok = True)
         
         # Save instance variables.
-        self.plotBaselineSteps = plotBaselineSteps
         self.outputDirectory = outputDirectory
         self.numSubPlotsX = numSubPlotsX
         self.useCHIPeaks = useCHIPeaks
         self.numFiles = numFiles
         self.finalYLim = [None, None]
-        self.yLabel = yLabel
+        self.yLabel = "Current (uAmps)"
+        self.xLabel = "Potential (V)"
     
     def clearFigure(self, fig):
         # Clear plots
@@ -54,15 +54,19 @@ class plots:
             yLim[1] = newDataMax + newDataRange*0.1
 
         return yLim
+    
+    def setAxisInfo(self, ax, title, xLabel, yLabel, yLim):
+        ax.set_xlabel(xLabel)
+        ax.set_ylabel(yLabel)
+        ax.set_title(title)
+        ax.set_ylim(yLim)
 
-    def saveplot(self, figure, axisLimits, base):
+    def saveplot(self, figure, superTitle, ax, legendAxes, legendLabels):
         # Plot and Save
-        plt.title(base + " DPV Graph")
-        plt.xlabel("Potential (V)")
-        plt.ylabel(self.yLabel)
-        plt.ylim(axisLimits)
-        lgd = plt.legend(bbox_to_anchor=(1.04,1), borderaxespad=0)
-        figure.savefig(self.outputDirectory + base + ".png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
+        plt.suptitle(superTitle)
+        legend = ax.legend(legendAxes, legendLabels, loc=9, bbox_to_anchor=(1.4, 1.02))
+        # lgd = plt.legend(bbox_to_anchor=(1.04,1), borderaxespad=0)
+        figure.savefig(self.outputDirectory + superTitle + ".png", dpi=300, bbox_extra_artists=(legend,), bbox_inches='tight')
     
     def saveSubplot(self, fig):
         # Plot and Save
@@ -71,41 +75,73 @@ class plots:
         #plt.subplots_adjust(hspace=0.5, wspace=0.5)
         fig.savefig(self.outputDirectory + "subplots.png", dpi=300)
     
-    def normalize(self, point, low, high):
-        return (point-low)/(high-low)
-    
-    def plotResults(self, potential, current, baseline, baselineCurrent, peakCurrents, peakPotentials, fileName):
-        # Plot the Initial Data
-        fig1 = plt.figure()
-        axisLimits = [None, None]
+    def addPeaksToPlot(self, ax, peakPotentials, peakCurrents, peakOffsets, legendAxes = [], legendLabels = []):
+        # For each peak found.
+        for peakNum in range(len(peakCurrents)):
+            # Get the peak location.
+            Ip = peakCurrents[peakNum]
+            Vp = peakPotentials[peakNum]
+            # Check the peak offset.
+            peakOffset = peakOffsets
+            if isinstance(peakOffsets, (list, np.ndarray)):
+                peakOffset = peakOffsets[peakNum]   
+            # Add the peak currents (verticle line) to the plots.
+            legendLabels.append("Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
+            legendAxes.append(ax.vlines(x=Vp, ymin=peakOffset, ymax=peakOffset + float(Ip), linewidth=2, color='tab:red', label = "Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps"))
         
+        return legendAxes, legendLabels
+        
+    def plotResults(self, potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, axFull, fileNum, fileName):
+        legendAxes = []; legendLabels = []
+
+        # if using CHI peaks
         if self.useCHIPeaks:
-            plt.plot(potential, current, label="True Data: " + fileName, color='C0')
-            # Set Axes Limits
-            axisLimits = self.getAxisLimits([current], axisLimits)
-        else:
-            # Plot Subtracted baseline
-            plt.plot(potential, baselineCurrent, label="Current After Baseline Subtraction", color='C2')
-            if self.plotBaselineSteps:
-                plt.plot(potential, current, label="True Data: " + fileName, color='C0')
-                plt.plot(potential, baseline, label="Baseline Current", color='C1')  
-                # Adjust axes limits
-                axisLimits = self.getAxisLimits([current, baseline], axisLimits)
-                # Save as different filename
-                fileName += " Full Analysis"
-            # Adjust axes limits
-            axisLimits = self.getAxisLimits([baselineCurrent], axisLimits)
+            # Create a new figure to plot the dats
+            fig = plt.figure(); ax = plt.gca()
+            axisLimits = [None, None]
+
+            # Plot the recorded data.
+            legendLabels.append("Recorded Data: " + fileName)
+            legendAxes.extend(ax.plot(potential, current, color='C0'))
+            # Add the peaks to the plot.
+            legendAxes, legendLabels = self.addPeaksToPlot(ax, peakPotentials, peakCurrents, peakOffsets = current[peakIndices] - peakCurrents, legendAxes = legendAxes, legendLabels = legendLabels)
+            # Compile axis information.
+            axisLimits = self.getAxisLimits([current], axisLimits) # Adjust axes limits.
+            self.setAxisInfo(ax, title = "Baseline Analysis", xLabel = self.xLabel, yLabel = self.yLabel, yLim = axisLimits)
             
-            # Plot the Peak Current (Verticle Line) for Visualization
-            for peakNum in range(len(peakCurrents)):
-                Ip = peakCurrents[peakNum]
-                Vp = peakPotentials[peakNum]
-                plt.axvline(x=Vp, ymin=self.normalize(0, axisLimits[0], axisLimits[1]), ymax=self.normalize(float(Ip), axisLimits[0], axisLimits[1]), linewidth=2, color='tab:red', label="Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
+            # Save Figure
+            self.saveplot(fig, fileName + " CHI Analysis", ax, legendAxes, legendLabels)
+        else:
+            # Create a new figure to plot the data
+            fig, axes = plt.subplots(1, 2, sharey=False, sharex = True, figsize=(13, 5))
+            axisLimits = [[None, None], [None, None]]
+            
+            # Plot only the subtracted baseline.
+            legendAxes.extend(axes[0].plot(potential, baselineCurrent, color='C2'))
+            self.addPeaksToPlot(axes[0], peakPotentials, peakCurrents, peakOffsets = 0)
+            # Adjust axes limits.
+            axisLimits[0] = self.getAxisLimits([baselineCurrent], axisLimits[0])
+            # Compile axis information.
+            self.setAxisInfo(axes[0], title = "Baseline Subtracted Current", xLabel = self.xLabel, yLabel = self.yLabel, yLim = axisLimits[0])
+            
+            # Plot all the data.
+            legendAxes.extend(axes[1].plot(potential, current, color='C0'))
+            legendAxes.extend(axes[1].plot(potential, baseline, color='C1'))
+            # Specify the data labels.
+            legendLabels = ["Baseline Subtracted Current", "Recorded Data: " + fileName, "Baseline Current"]
+            # Add the peaks to the plot.
+            legendAxes, legendLabels = self.addPeaksToPlot(axes[1], peakPotentials, peakCurrents, peakOffsets = baseline[peakIndices], legendAxes = legendAxes, legendLabels = legendLabels)
+            # Compile axis information.
+            axisLimits[1] = self.getAxisLimits([current, baseline], axisLimits[1]) # Adjust axes limits.
+            self.setAxisInfo(axes[1], title = "Baseline Analysis", xLabel = self.xLabel, yLabel = self.yLabel, yLim = axisLimits[1])
+
+            # Save Figure
+            self.saveplot(fig, fileName + " DPV Analysis", axes[1], legendAxes, legendLabels)
+                
+        # Add these plots to the full plot curve.
+        self.plotFullResults(potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, axFull, fileNum, fileName)
     
-        # Save Figure
-        self.saveplot(fig1, axisLimits, fileName)
-    
-    def plotFullResults(self, potential, current, baseline, baselineCurrent, peakInd, peakCurrents, peakPotentials, ax, fileNum, fileName):
+    def plotFullResults(self, potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, ax, fileNum, fileName):
         # Keep Running Subplots Order
         if self.numSubPlotsX == 1 or self.numFiles == 1:
             currentAxes = ax
@@ -120,44 +156,34 @@ class plots:
         
         # Plot Data in Subplots
         if self.useCHIPeaks and len(peakCurrents) != 0 and len(peakPotentials) != 0:
-            currentAxes.plot(potential, current, label="True Data: " + fileName, color='C0')
-            # Plot the Peak Current (Verticle Line) for Visualization
-            for peakNum in range(len(peakCurrents)):
-                Ip = peakCurrents[peakNum]
-                Vp = peakPotentials[peakNum]    
-                currentAxes.axvline(x=Vp, ymin=max(current) - Ip, ymax=max(current), linewidth=2, color='tab:red', label="Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
+            # Add the data to the plot.
+            currentAxes.plot(potential, current, label="Recorded Data: " + fileName, color='C0')
+            self.addPeaksToPlot(currentAxes, peakPotentials, peakCurrents, peakOffsets = max(current))
             # Set Legend Location
             currentAxes.legend(loc='best')  
             # Adjust axes limits
             self.finalYLim = self.getAxisLimits([current], self.finalYLim)
-        elif not self.plotBaselineSteps or True:
-            currentAxes.plot(potential, baselineCurrent, label="Current After Baseline Subtraction", color='k', linewidth=2)
-            # Plot the Peak Current (Verticle Line) for Visualization
-            for peakNum in range(len(peakCurrents)):
-                Ip = peakCurrents[peakNum]
-                Vp = peakPotentials[peakNum]                
-                currentAxes.vlines(x=Vp, ymin=0, ymax=float(Ip), linewidth=2, color='tab:red', label="Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
+        elif True:
+            # Add the data to the plot.
+            currentAxes.plot(potential, baselineCurrent, label="Baseline Subtracted Current", color='k', linewidth=2)
+            self.addPeaksToPlot(currentAxes, peakPotentials, peakCurrents, peakOffsets = 0)
             currentAxes.axhline(y = 0, color='tab:red', linestyle='--')
             # Set Legend Location
             currentAxes.legend(loc='best') 
             # Adjust axes limits
             self.finalYLim = self.getAxisLimits([baselineCurrent], self.finalYLim)
         else:
-            currentAxes.plot(potential, current, label="True Data: " + fileName, color='C0')
-            currentAxes.plot(potential, baselineCurrent, label="Current After Baseline Subtraction", color='C2')
+            # Add the data to the plot.
+            currentAxes.plot(potential, current, label="Recorded Data: " + fileName, color='C0')
+            currentAxes.plot(potential, baselineCurrent, label="Baseline Subtracted Current", color='C2')
             currentAxes.plot(potential, baseline, label="Baseline Current", color='C1')  
-            # Plot the Peak Current (Verticle Line) for Visualization
-            for peakNum in range(len(peakCurrents)):
-                Ip = peakCurrents[peakNum]
-                Vp = peakPotentials[peakNum]   
-                peakValue = baseline[peakInd][peakNum]
-                currentAxes.vlines(x=Vp, ymin=peakValue, ymax=float(Ip+peakValue), linewidth=2, color='tab:red', label="Peak Current: " + "%.3g"%Vp + " V, " + "%.4g"%Ip + " uAmps")
+            self.addPeaksToPlot(currentAxes, peakPotentials, peakCurrents, peakOffsets = baseline[peakIndices])
             # Set Legend Location
             currentAxes.legend(loc='best')  
             # Adjust axes limits
             self.finalYLim = self.getAxisLimits([current, baseline, baselineCurrent], self.finalYLim)
     
-        currentAxes.set_xlabel("Potential (V)")
+        currentAxes.set_xlabel(self.xLabel)
         currentAxes.set_ylabel(self.yLabel)
         currentAxes.set_title(fileName)
         
