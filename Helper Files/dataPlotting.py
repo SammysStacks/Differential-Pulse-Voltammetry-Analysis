@@ -63,10 +63,9 @@ class plots:
 
     def saveplot(self, figure, superTitle, ax, legendAxes, legendLabels):
         # Plot and Save
-        plt.suptitle(superTitle)
+        plotTitle = plt.suptitle(superTitle)
         legend = ax.legend(legendAxes, legendLabels, loc='upper left', bbox_to_anchor=(1.02, 1.02))
-        # lgd = plt.legend(bbox_to_anchor=(1.04,1), borderaxespad=0)
-        figure.savefig(self.outputDirectory + superTitle + ".png", dpi=300, bbox_extra_artists=(legend,), bbox_inches='tight')
+        figure.savefig(self.outputDirectory + superTitle + ".png", dpi=300, bbox_extra_artists=(legend, plotTitle), bbox_inches='tight')
         
     def saveSubplot(self, fig):
         # Plot and Save
