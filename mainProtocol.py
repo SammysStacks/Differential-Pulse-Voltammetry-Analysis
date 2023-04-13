@@ -44,7 +44,7 @@ if __name__ == "__main__":
     
     # Specify information about the potential/current being read in.
     potentialBounds = [None, None]  # The [minimum, maximum] potential to consider in this analysis.
-    scaleCurrent = 10**6            # You should scale all current as low values are not recorded well.
+    scaleCurrent = 10**6            # THIS SHOULD SCALE THE CURRENT TO uAMPS! You should scale all current as low values are not recorded well.
 
     # ---------------------------------------------------------------------- #
     
