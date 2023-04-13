@@ -9,7 +9,6 @@ Need to Install in the Python Enviroment Beforehand:
 # ---------------------------- Imported Modules ---------------------------- #
 
 # General modules
-import re
 import os
 import sys
 import math
