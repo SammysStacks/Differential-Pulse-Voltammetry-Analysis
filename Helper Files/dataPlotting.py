@@ -101,7 +101,7 @@ class plots:
             axisLimits = [None, None]
 
             # Plot the recorded data.
-            legendLabels.append("Recorded Data: " + fileName)
+            legendLabels.append("Recorded Current")
             legendAxes.extend(ax.plot(potential, current, color='C0'))
             # Add the peaks to the plot.
             legendAxes, legendLabels = self.addPeaksToPlot(ax, peakPotentials, peakCurrents, peakOffsets = current[peakIndices] - peakCurrents, legendAxes = legendAxes, legendLabels = legendLabels)
@@ -128,7 +128,7 @@ class plots:
             legendAxes.extend(axes[1].plot(potential, current, color='C0'))
             legendAxes.extend(axes[1].plot(potential, baselineCurrent, color='C1'))
             # Specify the data labels.
-            legendLabels = ["Baseline Subtracted Current", "Recorded Data: " + fileName, "Baseline Current"]
+            legendLabels = ["Baseline Subtracted Current", "Recorded Current", "Baseline Current"]
             # Add the peaks to the plot.
             legendAxes, legendLabels = self.addPeaksToPlot(axes[1], peakPotentials, peakCurrents, peakOffsets = baselineCurrent[peakIndices], legendAxes = legendAxes, legendLabels = legendLabels)
             # Compile axis information.
@@ -157,7 +157,7 @@ class plots:
         # Plot Data in Subplots
         if self.useCHIPeaks and len(peakCurrents) != 0 and len(peakPotentials) != 0:
             # Add the data to the plot.
-            currentAxes.plot(potential, current, label="Recorded Data: " + fileName, color='C0')
+            currentAxes.plot(potential, current, label="Recorded Current", color='C0')
             self.addPeaksToPlot(currentAxes, peakPotentials, peakCurrents, peakOffsets = max(current))
             # Set Legend Location
             currentAxes.legend(loc='best')  
