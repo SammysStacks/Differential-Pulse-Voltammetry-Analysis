@@ -64,6 +64,7 @@ if __name__ == "__main__":
     
     # Get file information
     extractData = excelProcessing.processFiles()
+    saveAnalysisResults = excelProcessing.saveExcelData()
     analysisFiles = extractData.getFiles(dataDirectory, removeFilesContaining, analyzeFilesContaining)
     
     # Create plot for all the curves.
@@ -78,7 +79,8 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
     # ------------------------ Start the Analsysis ------------------------- #
     
-    data = {}
+    peakInfo = []
+    analysisInfo = []
     # For each file we are analyzing.
     for fileNum in range(len(analysisFiles)):
         analysisFile = analysisFiles[fileNum]
@@ -104,34 +106,39 @@ if __name__ == "__main__":
         
         # Perform Iterative Polynomial Subtraction
         if useBaselineSubtraction:
-            baseline, baselineCurrent, peakIndices = dpvProtocols.useBaselineSubtraction(current, potential, polynomialOrder, reductiveScale)
+            baselineCurrent, baselineSubtractedCurrent, peakIndices = dpvProtocols.useBaselineSubtraction(current, potential, polynomialOrder, reductiveScale)
         # Find Optimal Linear Baseline Under Peak
         elif useLinearFit:
-            baseline, baselineCurrent, peakIndices = dpvProtocols.useLinearFit(current, potential, reductiveScale)
+            baselineCurrent, baselineSubtractedCurrent, peakIndices = dpvProtocols.useLinearFit(current, potential, reductiveScale)
         # At This Point, You BETTER be Getting the Peaks from the CHI File 
         elif not useCHIPeaks:
             sys.exit("Please Specify a DPV Peak Detection Mechanism")
         
         # Find the peak information
         if not useCHIPeaks:
-            peakCurrents = baselineCurrent[peakIndices]
+            peakCurrents = baselineSubtractedCurrent[peakIndices]
             peakPotentials = potential[peakIndices]
     
         # ----------------- Save and plot DPV Analysis ----------------------#
         
         # Plot the results
-        plot.plotResults(potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, ax, fileNum, fileName)
+        plot.plotResults(potential, current, baselineCurrent, baselineSubtractedCurrent, peakIndices, peakCurrents, peakPotentials, ax, fileNum, fileName)
 
-        # Save Data in a Dictionary for Plotting Later
-        data[fileName] = {}
-        data[fileName]["Ip"] = peakCurrents
-        data[fileName]["baselineCurrent"] = baselineCurrent
-        data[fileName]["potential"] = potential
-    
+        # Store the data in case user wants.
+        analysisInfo.append([potential, current, baselineCurrent, baselineSubtractedCurrent])
+        peakInfo.append([peakPotentials, peakCurrents])
+        
+        # Save the analysis.
+        saveExcelPath = dataDirectory + "DPV Analysis/Analysis Files/" + fileName + ".xlsx"
+        saveAnalysisResults.saveDataDPV(potential, current, baselineCurrent, baselineSubtractedCurrent, peakCurrents, peakPotentials, saveExcelPath)
             
 # ---------------------------------------------------------------------------#
 # --------------------- Plot and Save the Data ------------------------------#
 
+# Assert the integrity of data analysis.
+assert len(analysisFiles) == len(peakInfo) == len(analysisInfo)
+
+# Plot and save all the analysis in one figure.
 plt.setp(ax, ylim=plot.finalYLim)
 plt.title("All Decompositions") # Need this Line as we Change the Title When we Save Subplots
 plot.saveSubplot(fig)
@@ -146,140 +153,140 @@ sys.exit()
 # ----------------- USER SPECIFIC (USER SHOULD EDIT) ------------------------#
 
 
-outputDirectory = plot.outputDirectory
+# outputDirectory = plot.outputDirectory
 
-if not useCHIPeaks:
-    fig = plt.figure()
-    fig.set_figwidth(7.5)
-    fig.set_figheight(5)
-    #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
-    for i,filename in enumerate(sorted(data.keys())):
+# if not useCHIPeaks:
+#     fig = plt.figure()
+#     fig.set_figwidth(7.5)
+#     fig.set_figheight(5)
+#     #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
+#     for i,filename in enumerate(sorted(data.keys())):
         
-        # Get Peak Current
-        baselineCurrent = data[filename]["baselineCurrent"]
-        potential = data[filename]["potential"]
-        plt.plot(potential, baselineCurrent, label=filename)    
+#         # Get Peak Current
+#         baselineSubtractedCurrent = data[filename]["baselineSubtractedCurrent"]
+#         potential = data[filename]["potential"]
+#         plt.plot(potential, baselineSubtractedCurrent, label=filename)    
         
-    # Plot Curves
-    plt.title("DPV Current After Baseline Subtraction")
-    plt.xlabel("Potential (V)")
-    plt.ylabel("Current (uAmps)")
-    lgd = plt.legend(loc=9, bbox_to_anchor=(1.29, 1))
-    plt.savefig(outputDirectory + "Time Dependant DPV Curve Norepinephrine Full Curve Smooth.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
-    plt.show()
+#     # Plot Curves
+#     plt.title("DPV Current After Baseline Subtraction")
+#     plt.xlabel("Potential (V)")
+#     plt.ylabel("Current (uAmps)")
+#     lgd = plt.legend(loc=9, bbox_to_anchor=(1.29, 1))
+#     plt.savefig(outputDirectory + "Time Dependant DPV Curve Norepinephrine Full Curve Smooth.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
+#     plt.show()
 
 
-fig = plt.figure()
-#fig.tight_layout(pad=3) #tight margins
-fig.set_figwidth(7.5)
-fig.set_figheight(5)
-legendList = []; Molarity = []; current = []; time = []
-#ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
-for i,filename in enumerate(sorted(data.keys())):
-    if ' 5 Min' in filename or "50 nM" in filename:
-        continue
+# fig = plt.figure()
+# #fig.tight_layout(pad=3) #tight margins
+# fig.set_figwidth(7.5)
+# fig.set_figheight(5)
+# legendList = []; Molarity = []; current = []; time = []
+# #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
+# for i,filename in enumerate(sorted(data.keys())):
+#     if ' 5 Min' in filename or "50 nM" in filename:
+#         continue
     
-    # Extract Data from Name
-    stringDigits = re.findall('\d*\.?\d+', filename) 
-    digitsInName = list(map(float, stringDigits))
-    if len(digitsInName) == 2:
-        concentration = digitsInName[0]
-        timePoint = digitsInName[1]
-    elif len(digitsInName) == 3:
-        concentration = digitsInName[0]
-        timePoint = digitsInName[2]
-    elif len(digitsInName) == 1:
-        concentration = 0
-        timePoint = digitsInName[0]
-    else:
-        print("Found Too Many Numbers in the FileName")
-        sys.exit()
-    print(filename, timePoint, concentration)
+#     # Extract Data from Name
+#     stringDigits = re.findall('\d*\.?\d+', filename) 
+#     digitsInName = list(map(float, stringDigits))
+#     if len(digitsInName) == 2:
+#         concentration = digitsInName[0]
+#         timePoint = digitsInName[1]
+#     elif len(digitsInName) == 3:
+#         concentration = digitsInName[0]
+#         timePoint = digitsInName[2]
+#     elif len(digitsInName) == 1:
+#         concentration = 0
+#         timePoint = digitsInName[0]
+#     else:
+#         print("Found Too Many Numbers in the FileName")
+#         sys.exit()
+#     print(filename, timePoint, concentration)
     
-    # Get Peak Current
-    Ip = data[filename]["Ip"]
+#     # Get Peak Current
+#     Ip = data[filename]["Ip"]
     
-    if "0 nM" not in filename:
-        Ip = 0
+#     if "0 nM" not in filename:
+#         Ip = 0
     
     
-    if 'f 0 min' in filename:
-        time = [timePoint]
-        current  = [Ip]
-        Molarity = [concentration]
-    else:
-        time.append(timePoint)
-        current.append(Ip)
-        Molarity.append(concentration)
+#     if 'f 0 min' in filename:
+#         time = [timePoint]
+#         current  = [Ip]
+#         Molarity = [concentration]
+#     else:
+#         time.append(timePoint)
+#         current.append(Ip)
+#         Molarity.append(concentration)
         
-        # Plot Ip
-        fileLegend = filename.split("-")[0]
-        plt.plot(Molarity, current, 'o', label = fileLegend)
-        legendList.append(fileLegend)
+#         # Plot Ip
+#         fileLegend = filename.split("-")[0]
+#         plt.plot(Molarity, current, 'o', label = fileLegend)
+#         legendList.append(fileLegend)
 
-linearFitParams = np.polyfit(Molarity, current, 1)
-linearFit = np.polyval(linearFitParams, Molarity)
-plt.plot(Molarity, linearFit, 'k--', label="Current[uAmp] = " + str(np.round(linearFitParams[0],5)) + "*conc[nM] + " + str(np.round(linearFitParams[1],5)))
+# linearFitParams = np.polyfit(Molarity, current, 1)
+# linearFit = np.polyval(linearFitParams, Molarity)
+# plt.plot(Molarity, linearFit, 'k--', label="Current[uAmp] = " + str(np.round(linearFitParams[0],5)) + "*conc[nM] + " + str(np.round(linearFitParams[1],5)))
     
-# Plot Curves
-plt.title("Concentration Dependant DPV Peak Current: Dopamine")
-plt.xlabel("Concentration (nM)")
-plt.ylabel("DPV Peak Current (uAmps)")
-lgd = plt.legend(loc=9, bbox_to_anchor=(1.2, 1))
-plt.savefig(outputDirectory + "Concentration Dependant DPV Curve Dopamine no 50nM.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
-plt.show()
+# # Plot Curves
+# plt.title("Concentration Dependant DPV Peak Current: Dopamine")
+# plt.xlabel("Concentration (nM)")
+# plt.ylabel("DPV Peak Current (uAmps)")
+# lgd = plt.legend(loc=9, bbox_to_anchor=(1.2, 1))
+# plt.savefig(outputDirectory + "Concentration Dependant DPV Curve Dopamine no 50nM.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
+# plt.show()
 
 
-fig = plt.figure()
-#fig.tight_layout(pad=3) #tight margins
-fig.set_figwidth(7.5)
-fig.set_figheight(5)
-legendList = []
-#ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
-for i,filename in enumerate(sorted(data.keys())):
-    # Extract Data from Name
-    stringDigits = re.findall('\d*\.?\d+', filename)
-    digitsInName = list(map(float, stringDigits))
-    if len(digitsInName) == 2:
-        concentration = digitsInName[0]
-        timePoint = digitsInName[1]
-    elif len(digitsInName) == 3:
-        concentration = digitsInName[0]
-        timePoint = digitsInName[2]
-    elif len(digitsInName) == 1:
-        concentration = 0
-        timePoint = digitsInName[0]
-    else:
-        print("Found Too Many Numbers in the FileName")
-        sys.exit
-    print(filename, timePoint, concentration)
+# fig = plt.figure()
+# #fig.tight_layout(pad=3) #tight margins
+# fig.set_figwidth(7.5)
+# fig.set_figheight(5)
+# legendList = []
+# #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
+# for i,filename in enumerate(sorted(data.keys())):
+#     # Extract Data from Name
+#     stringDigits = re.findall('\d*\.?\d+', filename)
+#     digitsInName = list(map(float, stringDigits))
+#     if len(digitsInName) == 2:
+#         concentration = digitsInName[0]
+#         timePoint = digitsInName[1]
+#     elif len(digitsInName) == 3:
+#         concentration = digitsInName[0]
+#         timePoint = digitsInName[2]
+#     elif len(digitsInName) == 1:
+#         concentration = 0
+#         timePoint = digitsInName[0]
+#     else:
+#         print("Found Too Many Numbers in the FileName")
+#         sys.exit
+#     print(filename, timePoint, concentration)
     
-    # Get Peak Current
-    Ip = data[filename]["Ip"]
+#     # Get Peak Current
+#     Ip = data[filename]["Ip"]
     
     
-    if ' 0 min' in filename:
-        time = [timePoint]
-        current  = [Ip]
-        Molarity = [concentration]
-    else:
-        time.append(timePoint)
-        current.append(Ip)
-        Molarity.append(concentration)
+#     if ' 0 min' in filename:
+#         time = [timePoint]
+#         current  = [Ip]
+#         Molarity = [concentration]
+#     else:
+#         time.append(timePoint)
+#         current.append(Ip)
+#         Molarity.append(concentration)
         
-        # Plot Ip
-        fileLegend = filename.split("-")[0]
-        plt.plot(time, current, 'o-', label = fileLegend)
-        legendList.append(fileLegend)
+#         # Plot Ip
+#         fileLegend = filename.split("-")[0]
+#         plt.plot(time, current, 'o-', label = fileLegend)
+#         legendList.append(fileLegend)
     
     
-# Plot Curves
-plt.title("Time Dependant DPV Peak Current: Norepinephrine")
-plt.xlabel("Time (minutes)")
-plt.ylabel("DPV Peak Current (uAmps)")
-lgd = plt.legend(loc=9, bbox_to_anchor=(1.2, 1))
-plt.savefig(outputDirectory + "Time Dependant DPV Curve Norepinephrine Smooth.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
-plt.show()
+# # Plot Curves
+# plt.title("Time Dependant DPV Peak Current: Norepinephrine")
+# plt.xlabel("Time (minutes)")
+# plt.ylabel("DPV Peak Current (uAmps)")
+# lgd = plt.legend(loc=9, bbox_to_anchor=(1.2, 1))
+# plt.savefig(outputDirectory + "Time Dependant DPV Curve Norepinephrine Smooth.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
+# plt.show()
 
 
 

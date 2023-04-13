@@ -5,6 +5,7 @@
 # Basic Modules
 import os
 import sys
+import time
 import numpy as np
 import pandas as pd
 from natsort import natsorted
@@ -282,7 +283,7 @@ class saveExcelData(handlingExcelFormat):
             worksheet = WB.create_sheet(self.emptySheetName)
         return WB, worksheet
     
-    def saveDataDPV(self, peakInfoHolder, dataHeaders, saveExcelPath):
+    def saveDataDPV(self, potential, current, baselineCurrent, baselineSubtractedCurrent, peakCurrents, peakPotentials, saveExcelPath):
         print("Saving the Data")
         # ------------------------------------------------------------------ #
         # -------------------- Setup the excel document -------------------- #
@@ -290,52 +291,34 @@ class saveExcelData(handlingExcelFormat):
         os.makedirs(os.path.dirname(saveExcelPath), exist_ok=True) # Create Output File Directory to Save Data: If None Exists
         
         # Get the excel document.
-        WB, worksheet = self.getExcelDocument(saveExcelPath, overwriteSave = False)
+        WB, worksheet = self.getExcelDocument(saveExcelPath, overwriteSave = True)
         
         # ------------------------------------------------------------------ #
         # ---------------------- Add data to document ---------------------- #   
         
-        
-        headers = ["Cycle Number"]
-        # Add a header label for each peak
-        peakTypes = ["Oxidation", "Reduction"]
-        for reductiveScan in range(len(peakInfoHolder)):
-            peakType = peakTypes[reductiveScan]
-            for peakNum in range(len(peakInfoHolder[reductiveScan])):
-                peakInfoString = peakType + " Peak " + str(peakNum)
-                headers.extend([peakInfoString + " Potential (V)", peakInfoString + " Current (uAmps)", ""])
-        WB_worksheet.append(headers)
-        
-        # Organize and save the data
-        for frameNum in range(len(peakInfoHolder[0][0])):
-            frameData = [frameNum+1]
-            for reductiveScan in range(len(peakInfoHolder)):
-                for peakNum in range(len(peakInfoHolder[reductiveScan])):
-                    
-                    Ip = peakInfoHolder[reductiveScan][peakNum][frameNum][1]
-                    Ep = peakInfoHolder[reductiveScan][peakNum][frameNum][0]
-                    frameData.extend([Ep, Ip, ""])
-
-            # Write the Data to Excel
-            WB_worksheet.append(frameData)
-            
-            
         # Get the Header for the Data
-        header = ["Potential (V)"]
-        header.extend([dataHeader.capitalize() for dataHeader in dataHeaders])
-        
+        header = ["Potential (V)", "Recorded Current (uAmps)"]
+        # Add baseline headers if availible.
+        if len(baselineCurrent) != 0:
+            header.extend(["Baseline Current (uAmps)", "Baseline Subtracted Current (uAmps)"])
+        # Add peak information to the headers.
+        header.extend(["", "Peak Potentials (V)", "Peak Currents (uAmps)"])
+            
         # Loop through/save all the data in batches of maxAddToexcelSheet.
-        for firstIndexInFile in range(0, len(timePoints), self.maxAddToexcelSheet):
-            startTimer = timer.time()
+        for firstIndexInFile in range(0, len(potential), self.maxAddToexcelSheet):
             # Add the information to the page
-            worksheet.title = self.rawSignals_Sheetname
+            worksheet.title = self.signalData_Sheetname
             worksheet.append(header)  # Add the header labels to this specific file.
                         
             # Loop through all data to be saved within this sheet in the excel file.
-            for dataInd in range(firstIndexInFile, min(firstIndexInFile+self.maxAddToexcelSheet, len(timePoints))):
+            for dataInd in range(firstIndexInFile, min(firstIndexInFile+self.maxAddToexcelSheet, len(potential))):
                 # Organize all the data
-                row = [timePoints[dataInd]]
-                row.extend([dataCol[dataInd] for dataCol in signalData])
+                row = [potential[dataInd], current[dataInd]]
+                if len(baselineCurrent) != 0:
+                    row.extend([baselineCurrent[dataInd], baselineSubtractedCurrent[dataInd]])
+                # Add peak information if present.
+                if dataInd < len(peakPotentials):
+                    row.extend(["", peakPotentials[dataInd], peakCurrents[dataInd]])
                 
                 # Add the row to the worksheet
                 worksheet.append(row)
@@ -343,14 +326,37 @@ class saveExcelData(handlingExcelFormat):
             # Finalize document
             worksheet = self.addExcelAesthetics(worksheet) # Add Excel Aesthetics
             worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
+
+        # Remove empty page
+        if worksheet.title == self.emptySheetName:
+            WB.remove(worksheet)
+
+        # ------------------------------------------------------------------ #
+        # ---------------- Add peak information to document ---------------- # 
+        
+        # Start a new sheet.
+        worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
+        # Get the header for the peak information
+        header = ["Peak Potentials (V)", "Peak Currents (uAmps)"]
             
-            # If I need to use another sheet
-            if firstIndexInFile + self.maxAddToexcelSheet < len(timePoints):
-                # Keep track of how long it is taking.
-                endTimer = timer.time()
-                numberOfSheetsLeft = 1+(len(timePoints) - firstIndexInFile - self.maxAddToexcelSheet)//self.maxAddToexcelSheet
-                timeRemaining = (endTimer - startTimer)*numberOfSheetsLeft
-                print("\tEstimated Time Remaining " + str(timeRemaining) + " seconds; Excel Sheets Left to Add: " + str(numberOfSheetsLeft))
+        # Loop through/save all the data in batches of maxAddToexcelSheet.
+        for firstIndexInFile in range(0, len(peakPotentials), self.maxAddToexcelSheet):
+            # Add the information to the page
+            worksheet.title = self.peakInfo_SheetName
+            worksheet.append(header)  # Add the header labels to this specific file.
+                        
+            # Loop through all data to be saved within this sheet in the excel file.
+            for dataInd in range(firstIndexInFile, min(firstIndexInFile+self.maxAddToexcelSheet, len(peakPotentials))):
+                # Organize all the data
+                row = [peakPotentials[dataInd], peakCurrents[dataInd]]
+                
+                # Add the row to the worksheet
+                worksheet.append(row)
+    
+            # Finalize document
+            worksheet = self.addExcelAesthetics(worksheet) # Add Excel Aesthetics
+            worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
+
         # Remove empty page
         if worksheet.title == self.emptySheetName:
             WB.remove(worksheet)

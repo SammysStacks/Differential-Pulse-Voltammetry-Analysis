@@ -64,10 +64,10 @@ class plots:
     def saveplot(self, figure, superTitle, ax, legendAxes, legendLabels):
         # Plot and Save
         plt.suptitle(superTitle)
-        legend = ax.legend(legendAxes, legendLabels, loc=9, bbox_to_anchor=(1.4, 1.02))
+        legend = ax.legend(legendAxes, legendLabels, loc='upper left', bbox_to_anchor=(1.02, 1.02))
         # lgd = plt.legend(bbox_to_anchor=(1.04,1), borderaxespad=0)
         figure.savefig(self.outputDirectory + superTitle + ".png", dpi=300, bbox_extra_artists=(legend,), bbox_inches='tight')
-    
+        
     def saveSubplot(self, fig):
         # Plot and Save
         plt.title("Subplots of all DPV")
@@ -91,7 +91,7 @@ class plots:
         
         return legendAxes, legendLabels
         
-    def plotResults(self, potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, axFull, fileNum, fileName):
+    def plotResults(self, potential, current, baselineCurrent, baselineSubtractedCurrent, peakIndices, peakCurrents, peakPotentials, axFull, fileNum, fileName):
         legendAxes = []; legendLabels = []
 
         # if using CHI peaks
@@ -117,31 +117,31 @@ class plots:
             axisLimits = [[None, None], [None, None]]
             
             # Plot only the subtracted baseline.
-            legendAxes.extend(axes[0].plot(potential, baselineCurrent, color='C2'))
+            legendAxes.extend(axes[0].plot(potential, baselineSubtractedCurrent, color='C2'))
             self.addPeaksToPlot(axes[0], peakPotentials, peakCurrents, peakOffsets = 0)
             # Adjust axes limits.
-            axisLimits[0] = self.getAxisLimits([baselineCurrent], axisLimits[0])
+            axisLimits[0] = self.getAxisLimits([baselineSubtractedCurrent], axisLimits[0])
             # Compile axis information.
             self.setAxisInfo(axes[0], title = "Baseline Subtracted Current", xLabel = self.xLabel, yLabel = self.yLabel, yLim = axisLimits[0])
             
             # Plot all the data.
             legendAxes.extend(axes[1].plot(potential, current, color='C0'))
-            legendAxes.extend(axes[1].plot(potential, baseline, color='C1'))
+            legendAxes.extend(axes[1].plot(potential, baselineCurrent, color='C1'))
             # Specify the data labels.
             legendLabels = ["Baseline Subtracted Current", "Recorded Data: " + fileName, "Baseline Current"]
             # Add the peaks to the plot.
-            legendAxes, legendLabels = self.addPeaksToPlot(axes[1], peakPotentials, peakCurrents, peakOffsets = baseline[peakIndices], legendAxes = legendAxes, legendLabels = legendLabels)
+            legendAxes, legendLabels = self.addPeaksToPlot(axes[1], peakPotentials, peakCurrents, peakOffsets = baselineCurrent[peakIndices], legendAxes = legendAxes, legendLabels = legendLabels)
             # Compile axis information.
-            axisLimits[1] = self.getAxisLimits([current, baseline], axisLimits[1]) # Adjust axes limits.
+            axisLimits[1] = self.getAxisLimits([current, baselineCurrent], axisLimits[1]) # Adjust axes limits.
             self.setAxisInfo(axes[1], title = "Baseline Analysis", xLabel = self.xLabel, yLabel = self.yLabel, yLim = axisLimits[1])
 
             # Save Figure
             self.saveplot(fig, fileName + " DPV Analysis", axes[1], legendAxes, legendLabels)
                 
         # Add these plots to the full plot curve.
-        self.plotFullResults(potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, axFull, fileNum, fileName)
+        self.plotFullResults(potential, current, baselineCurrent, baselineSubtractedCurrent, peakIndices, peakCurrents, peakPotentials, axFull, fileNum, fileName)
     
-    def plotFullResults(self, potential, current, baseline, baselineCurrent, peakIndices, peakCurrents, peakPotentials, ax, fileNum, fileName):
+    def plotFullResults(self, potential, current, baselineCurrent, baselineSubtractedCurrent, peakIndices, peakCurrents, peakPotentials, ax, fileNum, fileName):
         # Keep Running Subplots Order
         if self.numSubPlotsX == 1 or self.numFiles == 1:
             currentAxes = ax
@@ -165,23 +165,23 @@ class plots:
             self.finalYLim = self.getAxisLimits([current], self.finalYLim)
         elif True:
             # Add the data to the plot.
-            currentAxes.plot(potential, baselineCurrent, label="Baseline Subtracted Current", color='k', linewidth=2)
+            currentAxes.plot(potential, baselineSubtractedCurrent, label="Baseline Subtracted Current", color='k', linewidth=2)
             self.addPeaksToPlot(currentAxes, peakPotentials, peakCurrents, peakOffsets = 0)
             currentAxes.axhline(y = 0, color='tab:red', linestyle='--')
             # Set Legend Location
             currentAxes.legend(loc='best') 
             # Adjust axes limits
-            self.finalYLim = self.getAxisLimits([baselineCurrent], self.finalYLim)
+            self.finalYLim = self.getAxisLimits([baselineSubtractedCurrent], self.finalYLim)
         else:
             # Add the data to the plot.
             currentAxes.plot(potential, current, label="Recorded Data: " + fileName, color='C0')
-            currentAxes.plot(potential, baselineCurrent, label="Baseline Subtracted Current", color='C2')
-            currentAxes.plot(potential, baseline, label="Baseline Current", color='C1')  
-            self.addPeaksToPlot(currentAxes, peakPotentials, peakCurrents, peakOffsets = baseline[peakIndices])
+            currentAxes.plot(potential, baselineSubtractedCurrent, label="Baseline Subtracted Current", color='C2')
+            currentAxes.plot(potential, baselineCurrent, label="Baseline Current", color='C1')  
+            self.addPeaksToPlot(currentAxes, peakPotentials, peakCurrents, peakOffsets = baselineCurrent[peakIndices])
             # Set Legend Location
             currentAxes.legend(loc='best')  
             # Adjust axes limits
-            self.finalYLim = self.getAxisLimits([current, baseline, baselineCurrent], self.finalYLim)
+            self.finalYLim = self.getAxisLimits([current, baselineCurrent, baselineSubtractedCurrent], self.finalYLim)
     
         currentAxes.set_xlabel(self.xLabel)
         currentAxes.set_ylabel(self.yLabel)
