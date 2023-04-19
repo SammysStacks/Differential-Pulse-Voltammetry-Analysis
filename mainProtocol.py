@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
         # ----------------------- Extract the Data --------------------------#
         # Extract the Data/File Information from the File (Potential, Current)
-        potential, current, peakPotentials, peakCurrents = extractData.getData(analysisFile, dataDirectory, testSheetNum = 0, excelDelimiter = ",")        
+        potential, current, peakPotentials, peakCurrents = extractData.getData(analysisFile, dataDirectory, testSheetNum = 0, excelDelimiter = "\t")        
         # Scale and Cull the Data
         current = current*scaleCurrent
         # Only consider data within the provided bounds. If no bounds provided, use all the data.
