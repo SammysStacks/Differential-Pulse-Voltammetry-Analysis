@@ -260,7 +260,8 @@ class processFiles(handlingExcelFormat):
             elif collectData:
                 # Type of program found.
                 if "type:" in cellVal:
-                    programType = float(cellVal.split("type:")[-1])
+                    programType = float(cellVal.split("type:")[-1])                    
+                    if programType != 1: collectData = False; continue
                     programTypes.append(programType)
                 # Scan rate found.
                 elif"scan rate:" in cellVal:
@@ -307,6 +308,39 @@ class processFiles(handlingExcelFormat):
                 
         return allPotentials, allCurrent, allPeakPotentials, allPeakCurrents
     
+    def extractCompiledAnalysis(self, excelSheet):
+        # Intiialize holds for current and potential.
+        allPeakCurrents = [[]]; allPeakPotentials = [[]];
+        allPotential = []; allCurrent = [[]]; 
+        
+        # If Header Exists, Skip Until You Find the Data
+        for row in excelSheet.rows:
+            cellA = row[0]
+            if type(cellA.value) in [int, float]:
+                dataStartRow = cellA.row + 1
+                endDataCol = len(row)
+                break
+
+        # initialize holder for variables.
+        allCurrent = [[] for _ in range(endDataCol-1)]
+        allPotential = [[] for _ in range(endDataCol-1)]
+        allPeakCurrents = [[] for _ in range(endDataCol-1)]
+        allPeakPotentials = [[] for _ in range(endDataCol-1)]
+        
+        # Loop Through the Excel Worksheet to collect all the data
+        for dataRow in excelSheet.iter_rows(min_col=1, min_row=dataStartRow-1, max_col=endDataCol, max_row=excelSheet.max_row):
+            # Stop Collecting Data When there is No More
+            if dataRow[0].value == None:
+                break
+            
+            # Get Data
+            for signalInd in range(endDataCol-1):
+                allCurrent[signalInd].append(float(dataRow[signalInd+1].value))
+                allPotential[signalInd].append(float(dataRow[0].value))
+        allCurrent = np.array(allCurrent)*10**-6
+        allPotential = np.array(allPotential)
+
+        return allPotential, allCurrent, allPeakPotentials, allPeakCurrents
     
     def getData(self, oldFile, outputFolder, testSheetNum = 0, excelDelimiter = ","):
         """
@@ -346,7 +380,10 @@ class processFiles(handlingExcelFormat):
         
         # Extract the Data
         print("\nExtracting Data from the Excel File:", excelFile)
-        potential, current, peakPotentialList, peakCurrentList = self.extractCHIData_DPV(xlWorksheet[0])
+        if xlWorksheet[0].title == self.signalData_Sheetname:
+            potential, current, peakPotentialList, peakCurrentList = self.extractCompiledAnalysis(xlWorksheet[0])
+        else:
+            potential, current, peakPotentialList, peakCurrentList = self.extractCHIData_DPV(xlWorksheet[0])
         
         xlWorkbook.close()
         # Finished Data Collection: Close Workbook and Return Data to User
