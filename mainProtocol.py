@@ -32,7 +32,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Input data information
-    dataDirectory = os.path.dirname(__file__) + "/Data/Example Data/"   # Specify the data folder with the CHI files. Must end with '/'.
+    dataDirectory = os.path.dirname(__file__) + "/Data/Test SWV/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
     analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.
@@ -65,43 +65,46 @@ if __name__ == "__main__":
     extractData = excelProcessing.processFiles()
     saveAnalysisResults = excelProcessing.saveExcelData()
     analysisFiles = extractData.getFiles(dataDirectory, removeFilesContaining, analyzeFilesContaining)
+    # Compile all the data from the files.
+    allPotential, allCurrent, allPeakPotentials, allPeakCurrents, fileNames = extractData.getAllData(analysisFiles, dataDirectory, testSheetNum = 0, excelDelimiter = "\t")
     
     # Create plot for all the curves.
-    numSubPlotsX = min(len(analysisFiles), numSubPlotsX)
-    plot = dataPlotting.plots(dataDirectory, useCHIPeaks, numSubPlotsX, len(analysisFiles))
-    fig, ax = plt.subplots(math.ceil(len(analysisFiles)/numSubPlotsX), numSubPlotsX, sharey=False, sharex = True, figsize=(25, 13))
+    numSubPlotsX = min(len(fileNames), numSubPlotsX)
+    plot = dataPlotting.plots(dataDirectory, useCHIPeaks, numSubPlotsX, len(fileNames))
+    fig, ax = plt.subplots(math.ceil(len(fileNames)/numSubPlotsX), numSubPlotsX, sharey=False, sharex = True, figsize=(25, 13))
     fig.tight_layout(pad = 3.0)
     
     # Compile analysis information
     dpvProtocols = dpvAnalysis.dpvProtocols()
-
+    
     # ---------------------------------------------------------------------- #
     # ------------------------ Start the Analsysis ------------------------- #
     
     peakInfo = []
     analysisInfo = []
     # For each file we are analyzing.
-    for fileNum in range(len(analysisFiles)):
-        analysisFile = analysisFiles[fileNum]
-        fileName = os.path.splitext(os.path.basename(analysisFile))[0]
-
-        # ----------------------- Extract the Data --------------------------#
-        # Extract the Data/File Information from the File (Potential, Current)
-        potential, current, peakPotentials, peakCurrents = extractData.getData(analysisFile, dataDirectory, testSheetNum = 0, excelDelimiter = "\t")        
+    for dpvInd in range(len(allPotential)):
+        # Extract all the DPV information from the trial.
+        peakPotentials, peakCurrents = allPeakPotentials[dpvInd], allPeakCurrents[dpvInd]
+        potential, unfilteredCurrent = allPotential[dpvInd], allCurrent[dpvInd]
+        fileName = fileNames[dpvInd]      
+          
+        print(f"\nAnalyzing Data in {fileName}")
+        # ----------------------- Data Preprocessing ----------------------- #
         # Scale and Cull the Data
-        current = current*scaleCurrent
+        unfilteredCurrent = unfilteredCurrent*scaleCurrent
         # Only consider data within the provided bounds. If no bounds provided, use all the data.
-        current = current[np.logical_and((potentialBounds[0] or -np.inf) <= potential, potential <= (potentialBounds[1] or np.inf))]
+        unfilteredCurrent = unfilteredCurrent[np.logical_and((potentialBounds[0] or -np.inf) <= potential, potential <= (potentialBounds[1] or np.inf))]
         potential = potential[np.logical_and((potentialBounds[0] or -np.inf) <= potential, potential <= (potentialBounds[1] or np.inf))]
         
         # Determine Whether the Data is Oxidative or Reductive
-        numNeg = sum(1 for currentVal in current if currentVal < 0)
-        reductiveScan = numNeg > len(current)/2
+        numNeg = sum(1 for currentVal in unfilteredCurrent if currentVal < 0)
+        reductiveScan = numNeg > len(unfilteredCurrent)/2
         reductiveScale = -(2*reductiveScan - 1)
         
-        # ---------------------- Get DPV Baseline ---------------------------#
+        # ------------------------ Get DPV Baseline ------------------------ #
         # Apply a Low Pass Filter
-        current = scipy.signal.savgol_filter(current, 7, 3)
+        current = scipy.signal.savgol_filter(unfilteredCurrent, 7, 3)
         
         # Perform Iterative Polynomial Subtraction
         if useBaselineSubtraction:
@@ -121,10 +124,10 @@ if __name__ == "__main__":
         # ----------------- Save and plot DPV Analysis ----------------------#
         
         # Plot the results
-        plot.plotResults(potential, current, baselineCurrent, baselineSubtractedCurrent, peakIndices, peakCurrents, peakPotentials, ax, fileNum, fileName)
+        plot.plotResults(potential, current, baselineCurrent, baselineSubtractedCurrent, peakIndices, peakCurrents, peakPotentials, ax, dpvInd, fileName)
 
         # Store the data in case user wants.
-        analysisInfo.append([potential, current, baselineCurrent, baselineSubtractedCurrent])
+        analysisInfo.append([potential, unfilteredCurrent, current, baselineCurrent, baselineSubtractedCurrent])
         peakInfo.append([peakPotentials, peakCurrents])
         
         # Save the analysis.
@@ -135,13 +138,23 @@ if __name__ == "__main__":
 # --------------------- Plot and Save the Data ------------------------------#
 
 # Assert the integrity of data analysis.
-assert len(analysisFiles) == len(peakInfo) == len(analysisInfo)
+assert len(peakInfo) == len(analysisInfo)
 
 # Plot and save all the analysis in one figure.
 plt.setp(ax, ylim=plot.finalYLim)
 plt.title("All Decompositions") # Need this Line as we Change the Title When we Save Subplots
 plot.saveSubplot(fig)
 plt.show() # Must be the Last Line
+
+try:
+    analysisInfo = np.array(analysisInfo, dtype=object)
+    # If they all share a common potential.
+    if np.all(np.equal(analysisInfo[:,0], analysisInfo[:, 0][0])):
+        # Save single excel document with all the information
+        saveExcelPath = dataDirectory + "DPV Analysis/Analysis Files/compiledAnalysis.xlsx"
+        saveAnalysisResults.saveAllData(analysisInfo, peakInfo, saveExcelPath)
+except:
+    pass
 
 sys.exit()
 

@@ -22,8 +22,13 @@ class handlingExcelFormat:
     def __init__(self):
         # Hardcoded sheetnames for different types of excel information
         self.emptySheetName = "empty"
-        self.peakInfo_SheetName = "Signal Data; File 0"
-        self.signalData_Sheetname = "Peak Info; File 0"
+        self.peakInfo_SheetName = "Peak Info; File 0"
+        self.signalData_Sheetname = "Signal Data; File 0"
+        self.filteredData_Sheetname = "Filtered Data; File 0"
+        self.baselineCurrent_Sheetname = "Baseline Current; File 0"
+        self.baselineSubtractedCurrent_Sheetname = "Final Current; File 0"
+        
+        self.excelFolder = "Excel Files/"
         
         # Excel parameters
         self.maxAddToexcelSheet = 1048500  # Max Rows in a Worksheet
@@ -45,7 +50,7 @@ class handlingExcelFormat:
             sys.exit()
         
         # Create Output File Directory to Save Data ONLY If None Exists
-        newExcelFolder = os.path.dirname(inputExcelFile) + "/Excel Files/"
+        newExcelFolder = os.path.dirname(inputExcelFile) + "/" + self.excelFolder
         os.makedirs(newExcelFolder, exist_ok = True)
         
         # Convert '.xls' to '.xlsx'
@@ -80,7 +85,7 @@ class handlingExcelFormat:
                 # Make Excel WorkBook
                 xlWorkbook = xl.Workbook()
                 xlWorksheet = xlWorkbook.active
-                # Write the Data from the CSV File to the Excel WorkBook
+                # Write the Data from the CSV File to the Excel WorkBook                
                 with open(inputFile, "r") as inputData:
                     inReader = csv.reader(inputData, delimiter = excelDelimiter)
                     with open(excelFile, 'w+', newline=''):
@@ -140,7 +145,11 @@ class processFiles(handlingExcelFormat):
         # For each file in the directory
         for fileName in os.listdir(dataDirectory):
             fileBase = os.path.splitext(fileName)[0]
-            
+            fullPath = dataDirectory + fileName
+
+            # Do not analyze temporary files
+            if fileBase.startswith(("~",'$','.')):
+                continue
             # Do not analyze files with a certain substring in the name.
             for substring in removeFilesContaining:
                 if substring in fileName:
@@ -148,11 +157,14 @@ class processFiles(handlingExcelFormat):
             # Only analyze files with a certain substring in the name.
             for substring in analyzeFilesContaining:
                 if substring not in fileName:
-                    continue            
+                    continue    
+            # Only analyze new files.
+            if fileBase in filesAdded or os.path.isdir(fullPath):
+                continue
             
             # Keep track of previously unseen analysis files.
-            if fileName.endswith((".txt",'csv','xlsx')) and fileBase not in filesAdded:
-                analysisFiles.append(dataDirectory + fileName)
+            if fileName.endswith((".txt",'.csv','.xlsx')) or "." not in fileName:
+                analysisFiles.append(fullPath)
                 filesAdded.add(fileBase)
         
         # If not analysis files found.s
@@ -170,7 +182,6 @@ class processFiles(handlingExcelFormat):
             self.value = value
 
     def extractCHIData_DPV(self, chiWorksheet):
-        
         peakCurrentList = []; peakPotentialList = []; 
         potential = []; current = []; findStart = True
         # Loop Through the Info Section and Extract the Needxed Run Info from Excel
@@ -180,6 +191,9 @@ class processFiles(handlingExcelFormat):
             cellVal = cell[0].value
             if cellVal == None:
                 continue
+            # If this is Jihong's board
+            if 'Command Sent' in cellVal:
+                return self.extractJihongBoardData(chiWorksheet)
             elif ',' in cellVal:
                 cellValues = cellVal.split(",")
                 cell = []
@@ -214,6 +228,85 @@ class processFiles(handlingExcelFormat):
         
         return potential, current, peakPotentialList, peakCurrentList
     
+    def extractJihongBoardData(self, chiWorksheet):
+        # Initialize program information.
+        programTypes = []; scanRates = []; range_ns = []
+        range_ps = []; tia_gains = []
+        collectData = False
+        # Intiialize holds for current and potential.
+        allPeakCurrents = [[]]; allPeakPotentials = [[]];
+        potential = []; allCurrent = [[]]; 
+        
+        # Loop through each row.
+        rowGenerator = chiWorksheet.rows
+        for cell in rowGenerator:
+            # Get Cell Value
+            cellVal = cell[0].value
+            # If nothing found, ignore.
+            if cellVal == None:
+                continue
+            
+            # If a new program started.
+            elif 'Command Sent' in cellVal:
+                # Signal new data is coming.
+                assert collectData == False
+                collectData = True
+                if len(allCurrent[-1]) != 0:
+                    allCurrent.append([])
+                    allPeakCurrents.append([])
+                    allPeakPotentials.append([])
+            
+            # If our program is running
+            elif collectData:
+                # Type of program found.
+                if "type:" in cellVal:
+                    programType = float(cellVal.split("type:")[-1])
+                    programTypes.append(programType)
+                # Scan rate found.
+                elif"scan rate:" in cellVal:
+                    scanRates.append(float(cellVal.split("scan rate:")[-1]))
+                # Range N of program found.
+                elif "range_n:" in cellVal:
+                    range_ns.append(float(cellVal.split("range_n:")[-1]))
+                # Range P of program found.
+                elif "range_p:" in cellVal:
+                    range_p = float(cellVal.split("range_p:")[-1])
+                    if range_p != 0: collectData = False; continue
+                    range_ps.append(range_p)
+                # Type of program found.
+                elif "tia gain:" in cellVal:
+                    tia_gains.append(float(cellVal.split("tia gain:")[-1]))
+                    
+                # If the program stoped
+                elif "Measurement Complete:" in cellVal:
+                    collectData = False
+                
+                # Else, we have data to analyze
+                else:
+                    # Subtract the two next currents.
+                    lowCurrent = float(cellVal)
+                    highCurrent = float(next(rowGenerator)[0].value) # Get the next value
+                    currentDiff = highCurrent - lowCurrent
+                    # Store the current value.
+                    allCurrent[-1].append(currentDiff)
+        if len(allCurrent[-1]) == 0: 
+            allCurrent.pop()
+            allPeakCurrents.pop()
+            allPeakPotentials.pop()
+        allCurrent = np.array(allCurrent)*10**-6
+        
+        # Get voltage information
+        minPotential, maxPotential = -0.004, -0.5
+        # Calculate the step size
+        step_size = -(minPotential - maxPotential) / (len(allCurrent[0]) - 1)
+        # Generate the interpolated values
+        potential = np.arange(minPotential, maxPotential + step_size,  step_size)
+        assert len(potential) == len(allCurrent[0])  
+        # Make more rows
+        allPotentials = np.tile(potential, (len(allCurrent), 1))
+                
+        return allPotentials, allCurrent, allPeakPotentials, allPeakCurrents
+    
     
     def getData(self, oldFile, outputFolder, testSheetNum = 0, excelDelimiter = ","):
         """
@@ -223,23 +316,25 @@ class processFiles(handlingExcelFormat):
             testSheetNum: An Integer Representing the Excel Worksheet (0-indexed) Order.
         --------------------------------------------------------------------------
         """ 
-        
+        # Ignore temporary files
+        assert not oldFile.split("/")[-1].startswith(("~", "$"))
         # Check if File Exists
         if not os.path.exists(oldFile):
             sys.exit("\nThe following Input File Does Not Exist: " + oldFile)
-
+       
+        isDocument = "." not in oldFile.split("/")[-1] # Documents have no extension.        
         # Convert TXT and CSV Files to XLSX
-        if oldFile.endswith((".txt", ".csv")):
+        if oldFile.endswith((".txt", ".csv")) or isDocument:
             # Extract Filename Information
             oldFileExtension = os.path.basename(oldFile)
             filename = os.path.splitext(oldFileExtension)[0]
-            newFilePath = outputFolder + "Excel Files/"
+            newFilePath = outputFolder + self.excelFolder
             # Make Output Folder Directory if Not Already Created
             os.makedirs(newFilePath, exist_ok = True)
-
+        
             # Convert CSV or TXT to XLSX
             excelFile = newFilePath + filename + ".xlsx"
-            xlWorkbook, xlWorksheet = self.convertToExcel(oldFile, excelFile, excelDelimiter = excelDelimiter, overwriteXL = False, testSheetNum = testSheetNum)
+            xlWorkbook, xlWorksheet = self.convertToExcel(oldFile, excelFile, excelDelimiter = excelDelimiter, overwriteXL = True, testSheetNum = testSheetNum)
         # If the File is Already an Excel File, Just Load the File
         elif oldFile.endswith(".xlsx"):
             excelFile = oldFile
@@ -247,7 +342,7 @@ class processFiles(handlingExcelFormat):
             xlWorkbook = xl.load_workbook(excelFile, data_only=True, read_only=True)
             xlWorksheet = xlWorkbook.worksheets[testSheetNum:]
         else:
-            sys.exit("\nThe Following File is Neither CSV, TXT, Nor XLSX: " + excelFile)
+            sys.exit("\nThe Following File is Neither CSV, TXT, Nor XLSX: " + oldFile)
         
         # Extract the Data
         print("\nExtracting Data from the Excel File:", excelFile)
@@ -256,6 +351,36 @@ class processFiles(handlingExcelFormat):
         xlWorkbook.close()
         # Finished Data Collection: Close Workbook and Return Data to User
         return potential, current, peakPotentialList, peakCurrentList
+    
+    def getAllData(self, allFiles, outputFolder, testSheetNum = 0, excelDelimiter = ","):
+        # Initialize holders for file data.
+        allPeakPotentials = []; allPeakCurrents = []
+        allPotential = []; allCurrent = []
+        fileNames = []
+        
+        # For each file.
+        for analysisFile in allFiles:
+            fileName = os.path.splitext(os.path.basename(analysisFile))[0]
+            
+            # Extract the new data.
+            potential, current, peakPotentialList, peakCurrentList = self.getData(analysisFile, outputFolder, testSheetNum, excelDelimiter)
+            # Add the new incoming data.
+            if isinstance(potential[0], (list, np.ndarray)):
+                allCurrent.extend(current)
+                allPotential.extend(potential)
+                allPeakCurrents.extend(peakCurrentList)
+                allPeakPotentials.extend(peakPotentialList)
+                fileNames.extend([fileName + f"_{trialInd}" for trialInd in range(len(potential))])
+            else:
+                fileNames.append(fileName)
+                allCurrent.append(current)
+                allPotential.append(potential)
+                allPeakCurrents.append(peakCurrentList)
+                allPeakPotentials.append(peakPotentialList)
+            
+        print("\nFinished Compiling all the Data")
+        return allPotential, allCurrent, allPeakPotentials, allPeakCurrents, fileNames
+            
 
 class saveExcelData(handlingExcelFormat):
     
@@ -283,7 +408,7 @@ class saveExcelData(handlingExcelFormat):
         return WB, worksheet
     
     def saveDataDPV(self, potential, current, baselineCurrent, baselineSubtractedCurrent, peakCurrents, peakPotentials, saveExcelPath):
-        print("Saving the Data")
+        print("\tSaving the analysis on the file")
         # ------------------------------------------------------------------ #
         # -------------------- Setup the excel document -------------------- #
         # Create the path to save the excel file.
@@ -348,6 +473,99 @@ class saveExcelData(handlingExcelFormat):
             for dataInd in range(firstIndexInFile, min(firstIndexInFile+self.maxAddToexcelSheet, len(peakPotentials))):
                 # Organize all the data
                 row = [peakPotentials[dataInd], peakCurrents[dataInd]]
+                
+                # Add the row to the worksheet
+                worksheet.append(row)
+    
+            # Finalize document
+            worksheet = self.addExcelAesthetics(worksheet) # Add Excel Aesthetics
+            worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
+
+        # Remove empty page
+        if worksheet.title == self.emptySheetName:
+            WB.remove(worksheet)
+        
+        # ------------------------------------------------------------------ #
+        # ------------------------ Save the document ----------------------- #  
+        # Save as New Excel File
+        WB.save(saveExcelPath)
+        WB.close()
+        
+    def saveAllData(self, analysisInfo, peakInfo, saveExcelPath):
+        print("\nSaving a Compiled Analysis")
+        # Extract the data.
+        allPeakPotentials, allPeakCurrents = np.array(peakInfo, dtype=object).T
+        allPotentials, allUnfilteredCurrents, allCurrents, allBaselineCurrents, allBaselineSubtractedCurrents = np.asarray(analysisInfo).transpose((1,0,2))
+        # ------------------------------------------------------------------ #
+        # -------------------- Setup the excel document -------------------- #
+        # Create the path to save the excel file.
+        os.makedirs(os.path.dirname(saveExcelPath), exist_ok=True) # Create Output File Directory to Save Data: If None Exists
+        
+        # Get the excel document.
+        WB, worksheet = self.getExcelDocument(saveExcelPath, overwriteSave = True)
+        
+        # ------------------------------------------------------------------ #
+        # ---------------------- Add data to document ---------------------- #   
+        
+        # Get the Header for the Data
+        header = ["Potential (V)"]
+        for signalInd in range(len(allCurrents)):
+            header.append(f"Recorded Signal {signalInd}")
+        
+        potential = allPotentials[0]
+        compiledSignals = np.array([allUnfilteredCurrents, allCurrents, allBaselineCurrents, allBaselineSubtractedCurrents])
+        sheetNames = [self.signalData_Sheetname, self.filteredData_Sheetname, self.baselineCurrent_Sheetname, self.baselineSubtractedCurrent_Sheetname]
+        # For each type of signal
+        for tabInd in range(len(compiledSignals)):
+            # Loop through/save all the data in batches of maxAddToexcelSheet.
+            for firstIndexInFile in range(0, len(potential), self.maxAddToexcelSheet):
+                # Add the information to the page
+                worksheet.title = sheetNames[tabInd]
+                worksheet.append(header)  # Add the header labels to this specific file.
+                            
+                # Loop through all data to be saved within this sheet in the excel file.
+                for dataInd in range(firstIndexInFile, min(firstIndexInFile+self.maxAddToexcelSheet, len(potential))):
+                    # Organize all the data
+                    row = [potential[dataInd]]
+                    row.extend(compiledSignals[tabInd, :, dataInd])
+                    
+                    # Add the row to the worksheet
+                    worksheet.append(row)
+        
+                # Finalize document
+                worksheet = self.addExcelAesthetics(worksheet) # Add Excel Aesthetics
+                worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
+
+        # Remove empty page
+        if worksheet.title == self.emptySheetName:
+            WB.remove(worksheet)
+            
+        # ------------------------------------------------------------------ #
+        # ---------------- Add peak information to document ---------------- # 
+        
+        # Start a new sheet.
+        worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
+        # Get the header for the peak information
+        header = []
+        for signalInd in range(len(allPotentials)):
+            header.extend([f"Peak Potentials for {signalInd} (V)", f"Peak Currents for {signalInd} (uAmps)"])
+            
+        maxNumPeaks = len(max(allPeakPotentials, key = lambda peakPotentials: len(peakPotentials)))
+        # Loop through/save all the data in batches of maxAddToexcelSheet.
+        for firstIndexInFile in range(0, maxNumPeaks, self.maxAddToexcelSheet):
+            # Add the information to the page
+            worksheet.title = self.peakInfo_SheetName
+            worksheet.append(header)  # Add the header labels to this specific file.
+                        
+            # Loop through all data to be saved within this sheet in the excel file.
+            for dataInd in range(firstIndexInFile, min(firstIndexInFile+self.maxAddToexcelSheet, maxNumPeaks)):
+                row = []
+                # Organize all the data
+                for signalInd in range(len(allPeakPotentials)):
+                    if dataInd < len(allPeakPotentials[signalInd]):
+                        row.extend([allPeakPotentials[signalInd][dataInd], allPeakCurrents[signalInd][dataInd]])
+                    else:
+                        row.extend([None, None])
                 
                 # Add the row to the worksheet
                 worksheet.append(row)
