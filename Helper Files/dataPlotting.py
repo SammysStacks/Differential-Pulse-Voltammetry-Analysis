@@ -186,4 +186,41 @@ class plots:
         currentAxes.set_ylabel(self.yLabel)
         currentAxes.set_title(fileName)
         
+    def plotCompiledResults(self, analysisInfo, peakInfo, fileNames):
+        # Extract the data.
+        allPeakPotentials, allPeakCurrents = np.array(peakInfo, dtype=object).T
+        allPotentials, allUnfilteredCurrents, allCurrents, allBaselineCurrents, allBaselineSubtractedCurrents = np.asarray(analysisInfo).transpose((1,0,2))
+        
+        # Compilee the information.
+        potential = allPotentials[0]
+        compiledSignals = np.array([allUnfilteredCurrents, allCurrents, allBaselineCurrents, allBaselineSubtractedCurrents])
+        plotTitles = ["Recorded Current", "Filtered Current", "Baseline Current", "Final Current"]
+        
+        for plotInd in range(len(compiledSignals)):
+            signalData = compiledSignals[plotInd]
+            
+            # Create a new figure to plot the dats
+            fig = plt.figure(); ax = plt.gca()
+            legendAxes = []; legendLabels = []
+            axisLimits = [None, None]
+            
+            # For each dataset/file.
+            for fileInd in range(len(fileNames)):
+                # Plot the recorded data.
+                legendLabels.append(fileNames[fileInd])
+                legendAxes.extend(ax.plot(potential, signalData[fileInd]))
+                # Compile axis information.
+                axisLimits = self.getAxisLimits([signalData[fileInd]], axisLimits) # Adjust axes limits.
+                self.setAxisInfo(ax, title = "Compiled Analysis", xLabel = self.xLabel, yLabel = self.yLabel, yLim = axisLimits)
+                
+                # Save Figure
+                self.saveplot(fig, plotTitles[plotInd], ax, legendAxes, legendLabels)
+        
+        
+        
+        
+        
+        
+
+        
         

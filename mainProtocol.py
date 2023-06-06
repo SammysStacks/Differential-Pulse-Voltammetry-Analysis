@@ -32,7 +32,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Input data information
-    dataDirectory = os.path.dirname(__file__) + "/Data/Test SWV/"   # Specify the data folder with the CHI files. Must end with '/'.
+    dataDirectory = os.path.dirname(__file__) + "/Data/Jihong/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
     analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.
@@ -146,11 +146,17 @@ plt.title("All Decompositions") # Need this Line as we Change the Title When we 
 plot.saveSubplot(fig)
 plt.show() # Must be the Last Line
 
+
+
 try:
+    # Make an ndarray out of the analysis information.
     analysisInfo = np.array(analysisInfo, dtype=object)
     # If they all share a common potential.
     if np.all(np.equal(analysisInfo[:,0], analysisInfo[:, 0][0])):
-        # Save single excel document with all the information
+        # Plot the compiled analysis.
+        plot.plotCompiledResults(analysisInfo, peakInfo, fileNames)
+
+        # Save single excel document with all the information.
         saveExcelPath = dataDirectory + "DPV Analysis/Analysis Files/compiledAnalysis.xlsx"
         saveAnalysisResults.saveAllData(analysisInfo, peakInfo, saveExcelPath)
 except:
