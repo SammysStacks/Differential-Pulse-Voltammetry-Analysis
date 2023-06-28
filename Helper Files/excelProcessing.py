@@ -139,6 +139,7 @@ class handlingExcelFormat:
 class processFiles(handlingExcelFormat):
     
     def getFiles(self, dataDirectory, removeFilesContaining, analyzeFilesContaining):
+        print(analyzeFilesContaining)
         # Setup parameters
         analysisFiles = []; filesAdded = set();
         
@@ -153,11 +154,11 @@ class processFiles(handlingExcelFormat):
             # Do not analyze files with a certain substring in the name.
             for substring in removeFilesContaining:
                 if substring in fileName:
-                    continue
+                    fileName = "."
             # Only analyze files with a certain substring in the name.
             for substring in analyzeFilesContaining:
                 if substring not in fileName:
-                    continue    
+                    fileName = "."
             # Only analyze new files.
             if fileBase in filesAdded or os.path.isdir(fullPath):
                 continue

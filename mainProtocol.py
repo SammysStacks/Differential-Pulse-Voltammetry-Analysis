@@ -32,10 +32,10 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Input data information
-    dataDirectory = os.path.dirname(__file__) + "/Data/Jihong/"   # Specify the data folder with the CHI files. Must end with '/'.
+    dataDirectory = os.path.dirname(__file__) + "/Data/NE Test/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
-    analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.
+    analyzeFilesContaining = ["20 Seg"]   # A list of strings that must be in any file analyzed.
 
     # Specify the analysis protocol
     useCHIPeaks = False             # DEPRECATED (ASK SAM FOR USE). Use CHI calculated peaks. The peak information must be in the file.
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     saveAnalysisResults = excelProcessing.saveExcelData()
     analysisFiles = extractData.getFiles(dataDirectory, removeFilesContaining, analyzeFilesContaining)
     # Compile all the data from the files.
-    allPotential, allCurrent, allPeakPotentials, allPeakCurrents, fileNames = extractData.getAllData(analysisFiles, dataDirectory, testSheetNum = 0, excelDelimiter = "\t")
+    allPotential, allCurrent, allPeakPotentials, allPeakCurrents, fileNames = extractData.getAllData(analysisFiles, dataDirectory, testSheetNum = 0, excelDelimiter = ",")
     
     # Create plot for all the curves.
     numSubPlotsX = min(len(fileNames), numSubPlotsX)
