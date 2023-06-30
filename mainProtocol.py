@@ -35,7 +35,7 @@ if __name__ == "__main__":
     dataDirectory = os.path.dirname(__file__) + "/Data/NE Test/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
-    analyzeFilesContaining = ["20 Seg"]   # A list of strings that must be in any file analyzed.
+    analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.
 
     # Specify the analysis protocol
     useCHIPeaks = False             # DEPRECATED (ASK SAM FOR USE). Use CHI calculated peaks. The peak information must be in the file.
@@ -146,8 +146,6 @@ plt.title("All Decompositions") # Need this Line as we Change the Title When we 
 plot.saveSubplot(fig)
 plt.show() # Must be the Last Line
 
-
-
 try:
     # Make an ndarray out of the analysis information.
     analysisInfo = np.array(analysisInfo, dtype=object)
@@ -161,152 +159,5 @@ try:
         saveAnalysisResults.saveAllData(analysisInfo, peakInfo, saveExcelPath)
 except:
     pass
-
-sys.exit()
-
-
-
-# ---------------------------------------------------------------------------#
-# -------------- Specific Plotting Method for This Data ---------------------#
-# ----------------- USER SPECIFIC (USER SHOULD EDIT) ------------------------#
-
-
-# outputDirectory = plot.outputDirectory
-
-# if not useCHIPeaks:
-#     fig = plt.figure()
-#     fig.set_figwidth(7.5)
-#     fig.set_figheight(5)
-#     #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
-#     for i,filename in enumerate(sorted(data.keys())):
-        
-#         # Get Peak Current
-#         baselineSubtractedCurrent = data[filename]["baselineSubtractedCurrent"]
-#         potential = data[filename]["potential"]
-#         plt.plot(potential, baselineSubtractedCurrent, label=filename)    
-        
-#     # Plot Curves
-#     plt.title("DPV Current After Baseline Subtraction")
-#     plt.xlabel("Potential (V)")
-#     plt.ylabel("Current (uAmps)")
-#     lgd = plt.legend(loc=9, bbox_to_anchor=(1.29, 1))
-#     plt.savefig(outputDirectory + "Time Dependant DPV Curve Norepinephrine Full Curve Smooth.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
-#     plt.show()
-
-
-# fig = plt.figure()
-# #fig.tight_layout(pad=3) #tight margins
-# fig.set_figwidth(7.5)
-# fig.set_figheight(5)
-# legendList = []; Molarity = []; current = []; time = []
-# #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
-# for i,filename in enumerate(sorted(data.keys())):
-#     if ' 5 Min' in filename or "50 nM" in filename:
-#         continue
-    
-#     # Extract Data from Name
-#     stringDigits = re.findall('\d*\.?\d+', filename) 
-#     digitsInName = list(map(float, stringDigits))
-#     if len(digitsInName) == 2:
-#         concentration = digitsInName[0]
-#         timePoint = digitsInName[1]
-#     elif len(digitsInName) == 3:
-#         concentration = digitsInName[0]
-#         timePoint = digitsInName[2]
-#     elif len(digitsInName) == 1:
-#         concentration = 0
-#         timePoint = digitsInName[0]
-#     else:
-#         print("Found Too Many Numbers in the FileName")
-#         sys.exit()
-#     print(filename, timePoint, concentration)
-    
-#     # Get Peak Current
-#     Ip = data[filename]["Ip"]
-    
-#     if "0 nM" not in filename:
-#         Ip = 0
-    
-    
-#     if 'f 0 min' in filename:
-#         time = [timePoint]
-#         current  = [Ip]
-#         Molarity = [concentration]
-#     else:
-#         time.append(timePoint)
-#         current.append(Ip)
-#         Molarity.append(concentration)
-        
-#         # Plot Ip
-#         fileLegend = filename.split("-")[0]
-#         plt.plot(Molarity, current, 'o', label = fileLegend)
-#         legendList.append(fileLegend)
-
-# linearFitParams = np.polyfit(Molarity, current, 1)
-# linearFit = np.polyval(linearFitParams, Molarity)
-# plt.plot(Molarity, linearFit, 'k--', label="Current[uAmp] = " + str(np.round(linearFitParams[0],5)) + "*conc[nM] + " + str(np.round(linearFitParams[1],5)))
-    
-# # Plot Curves
-# plt.title("Concentration Dependant DPV Peak Current: Dopamine")
-# plt.xlabel("Concentration (nM)")
-# plt.ylabel("DPV Peak Current (uAmps)")
-# lgd = plt.legend(loc=9, bbox_to_anchor=(1.2, 1))
-# plt.savefig(outputDirectory + "Concentration Dependant DPV Curve Dopamine no 50nM.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
-# plt.show()
-
-
-# fig = plt.figure()
-# #fig.tight_layout(pad=3) #tight margins
-# fig.set_figwidth(7.5)
-# fig.set_figheight(5)
-# legendList = []
-# #ax = fig.add_axes([0.1, 0.1, 0.7, 0.9])
-# for i,filename in enumerate(sorted(data.keys())):
-#     # Extract Data from Name
-#     stringDigits = re.findall('\d*\.?\d+', filename)
-#     digitsInName = list(map(float, stringDigits))
-#     if len(digitsInName) == 2:
-#         concentration = digitsInName[0]
-#         timePoint = digitsInName[1]
-#     elif len(digitsInName) == 3:
-#         concentration = digitsInName[0]
-#         timePoint = digitsInName[2]
-#     elif len(digitsInName) == 1:
-#         concentration = 0
-#         timePoint = digitsInName[0]
-#     else:
-#         print("Found Too Many Numbers in the FileName")
-#         sys.exit
-#     print(filename, timePoint, concentration)
-    
-#     # Get Peak Current
-#     Ip = data[filename]["Ip"]
-    
-    
-#     if ' 0 min' in filename:
-#         time = [timePoint]
-#         current  = [Ip]
-#         Molarity = [concentration]
-#     else:
-#         time.append(timePoint)
-#         current.append(Ip)
-#         Molarity.append(concentration)
-        
-#         # Plot Ip
-#         fileLegend = filename.split("-")[0]
-#         plt.plot(time, current, 'o-', label = fileLegend)
-#         legendList.append(fileLegend)
-    
-    
-# # Plot Curves
-# plt.title("Time Dependant DPV Peak Current: Norepinephrine")
-# plt.xlabel("Time (minutes)")
-# plt.ylabel("DPV Peak Current (uAmps)")
-# lgd = plt.legend(loc=9, bbox_to_anchor=(1.2, 1))
-# plt.savefig(outputDirectory + "Time Dependant DPV Curve Norepinephrine Smooth.png", dpi=300, bbox_extra_artists=(lgd,), bbox_inches='tight')
-# plt.show()
-
-
-
 
 

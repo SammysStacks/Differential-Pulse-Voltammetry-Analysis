@@ -50,6 +50,8 @@ class polynomialBaselineFit:
 class bestLinearFit2:
     
     def __init__(self):
+        # Specify peak parameters.
+        self.ignoredBoundaryPoints = 5
         self.minPeakDuration = 10
     
     def findBaseline(self, xData, yData):
@@ -128,18 +130,20 @@ class bestLinearFit2:
         # ------------------------------------------------------------------ #
         return baseline
     
-    def findPeak(self, xData, yData, ignoredBoundaryPoints = 5, deriv = False):
+    def findPeak(self, xData, yData, deriv = False):
         # Find All Peaks in the Data
         peakInfo = scipy.signal.find_peaks(yData, prominence=10E-10, distance = 5)
         
         # Remove Peaks Nearby Boundaries
         peakIndices = peakInfo[0]
-        peakIndices = peakIndices[np.logical_and(peakIndices < len(xData) - ignoredBoundaryPoints, peakIndices >= ignoredBoundaryPoints)]
+        peakIndices = peakIndices[np.logical_and(peakIndices < len(xData) - self.ignoredBoundaryPoints, peakIndices >= self.ignoredBoundaryPoints)]
 
+        # If peaks are found in the data
         if len(peakIndices) == 0 and not deriv:
+            # Analyze the peaks in the first derivative.
             filteredVelocity = scipy.signal.savgol_filter(yData, 9, 3, deriv=1)
-            return self.findPeak(xData, filteredVelocity, ignoredBoundaryPoints, deriv = True)
-        # If No Peak is Found, Return None
+            return self.findPeak(xData, filteredVelocity, self.ignoredBoundaryPoints, deriv = True)
+        # If no peaks found, return an empty list.
         return peakIndices
     
     def findPeakGeneral(self, xData, yData):
@@ -157,6 +161,8 @@ class bestLinearFit2:
         # For Each Index Pair on the Left and Right of the Peak
         for rightInd in range(peakInd+2, len(yData), 1):
             for leftInd in range(peakInd-2, -1, -1):
+                if rightInd - leftInd < self.minPeakDuration:
+                    continue
                 
                 # Initialize range of data to check
                 checkPeakBuffer = 0#int((rightInd - leftInd)/4)
@@ -169,14 +175,11 @@ class bestLinearFit2:
                 linearFit = lineSlope*xDataCut + slopeIntercept
 
                 # Find the Number of Points Above the Tangent Line
-                numWrongSideOfTangent = len(linearFit[linearFit - yDataCut > 0])
-                
-                # If a Tangent Line is Drawn Correctly, Return the Tangent Points' Indexes
-                # if numWrongSideOfTangent == 0 and rightInd - leftInd > self.minPeakDuration:
-                #     return (leftInd, rightInd)
+                numWrongSideOfTangent = (linearFit - yDataCut > 0).sum()
+
                 # Define a threshold for distinguishing good/bad lines
                 maxBadPoints = int(len(linearFit)/15) # Minimum 1/6
-                if numWrongSideOfTangent < maxBadPoints and rightInd - leftInd > self.minPeakDuration:
+                if numWrongSideOfTangent < maxBadPoints:
                     goodTangentInd[numWrongSideOfTangent].append((leftInd, rightInd))
                     
         # If Nothing Found, Try and Return a Semi-Optimal Tangent Position
@@ -188,21 +191,23 @@ class bestLinearFit2:
 # ---------------------------------------------------------------------------#
 # ---------------------- Linear Baseline Subtraction  ---------------------- #
 
+# DEPRECATED
 class bestLinearFit:
     
     def __init__(self, potential, current):
+        self.ignoredBoundaryPoints = 10
         self.potential = potential
         self.current = current
         self.linearFit = []
         self.baseline = None
     
-    def findPeak(self, smoothCurrent, reductiveScale = 1, ignoredBoundaryPoints = 10):
+    def findPeak(self, smoothCurrent, reductiveScale = 1):
         smoothCurrentPeaks = scipy.signal.find_peaks(reductiveScale*smoothCurrent.derivative(n=1)(self.potential), prominence=10E-4, width=4)
         allPeakInds = smoothCurrentPeaks[0]
         allProminences = smoothCurrentPeaks[1]['prominences']
         # Remove Peaks Nearby Boundaries
-        allProminences = allProminences[np.logical_and(allPeakInds < len(self.potential) - ignoredBoundaryPoints, allPeakInds >= ignoredBoundaryPoints)]
-        allPeakInds = allPeakInds[np.logical_and(allPeakInds < len(self.potential) - ignoredBoundaryPoints, allPeakInds >= ignoredBoundaryPoints)]
+        allProminences = allProminences[np.logical_and(allPeakInds < len(self.potential) - self.ignoredBoundaryPoints, allPeakInds >= self.ignoredBoundaryPoints)]
+        allPeakInds = allPeakInds[np.logical_and(allPeakInds < len(self.potential) - self.ignoredBoundaryPoints, allPeakInds >= self.ignoredBoundaryPoints)]
         
         if len(allPeakInds) > 0:
             bestPeak = allProminences.argmax()
@@ -216,8 +221,8 @@ class bestLinearFit:
         smoothCurrentPeaks = scipy.signal.find_peaks(smoothCurrent.derivative(n=2)(self.potential), prominence=10E-10)
         allPeakInds = smoothCurrentPeaks[0]
         # Remove Peaks Nearby Boundaries
-        ignoredBoundaryPoints = 10
-        allPeakInds = allPeakInds[np.logical_and(allPeakInds < len(self.potential) - ignoredBoundaryPoints, allPeakInds >= ignoredBoundaryPoints)]
+        self.ignoredBoundaryPoints = 10
+        allPeakInds = allPeakInds[np.logical_and(allPeakInds < len(self.potential) - self.ignoredBoundaryPoints, allPeakInds >= self.ignoredBoundaryPoints)]
 
         leftPoints = allPeakInds[allPeakInds < peakInd]
         if len(leftPoints) > 0 and len(leftPoints) < len(allPeakInds):

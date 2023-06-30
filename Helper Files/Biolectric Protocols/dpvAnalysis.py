@@ -2,17 +2,12 @@
 # -------------------------------------------------------------------------- #
 # ---------------------------- Imported Modules ---------------------------- #
 
-# General modules
-import os
-import sys
+# General
 import scipy
 
-# Import baseline files
-sys.path.append(os.path.dirname(__file__) + "/Helper Files/")
-import _baselineProtocols
-
 # Import filtering file
-import _filteringProtocols as filteringMethods # Import Files with Filtering Methods
+import _baselineProtocols   # Import class with baseline methods.
+import _filteringProtocols  # Import class with filtering methods.
 
 # -------------------------------------------------------------------------- #
 # ----------------------------- DPV Protocols ------------------------------ #
@@ -20,13 +15,16 @@ import _filteringProtocols as filteringMethods # Import Files with Filtering Met
 class dpvProtocols:
     
     def __init__(self):
-        # Define filtering class
-        self.filteringMethods = filteringMethods.filteringMethods()
-    
+        # Initialize general data preperation classes.
+        self.filteringMethods = _filteringProtocols.filteringMethods()
+        
+        # Initialize baseline subtraction classes.
+        self.linearBaselineFit = _baselineProtocols.bestLinearFit2()
+        self.polynomialBaselineFit = _baselineProtocols.polynomialBaselineFit()
+
     def useBaselineSubtraction(self, current, potential, polynomialOrder, reductiveScale):
         # Get Baseline from Iterative Polynomial Subtraction
-        polynomialBaselineFit = _baselineProtocols.polynomialBaselineFit()
-        baseline = polynomialBaselineFit.baselineSubtractionAPI(current, polynomialOrder, reductiveScale)
+        baseline = self.polynomialBaselineFit.baselineSubtractionAPI(current, polynomialOrder, reductiveScale)
         # Find Current After Baseline Subtraction
         baselineCurrent = current - baseline
         
@@ -43,13 +41,11 @@ class dpvProtocols:
         return baseline, baselineCurrent, peakIndices
             
     def useLinearFit(self, current, potential, reductiveScale):
-        # Get Baseline from Iterative Polynomial Subtraction
-        linearBaselineFit = _baselineProtocols.bestLinearFit2()
         # Remove the baseline from the data
-        baseline = linearBaselineFit.findBaseline(potential, current*reductiveScale)*reductiveScale
+        baseline = self.linearBaselineFit.findBaseline(potential, current*reductiveScale)*reductiveScale
         baselineCurrent = current - baseline
         # Find the Peak Current After Baseline Subtraction
-        peakIndices = linearBaselineFit.findPeakGeneral(potential, baselineCurrent*reductiveScale)
+        peakIndices = self.linearBaselineFit.findPeakGeneral(potential, baselineCurrent*reductiveScale)
         
         return baseline, baselineCurrent, peakIndices
         
