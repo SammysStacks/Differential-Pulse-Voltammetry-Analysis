@@ -32,7 +32,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
 
     # Input data information
-    dataDirectory = os.path.dirname(__file__) + "/Data/NE Test/"   # Specify the data folder with the CHI files. Must end with '/'.
+    dataDirectory = os.path.dirname(__file__) + "/Data/Test MQ/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
     analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.

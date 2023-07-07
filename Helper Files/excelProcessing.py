@@ -139,7 +139,6 @@ class handlingExcelFormat:
 class processFiles(handlingExcelFormat):
     
     def getFiles(self, dataDirectory, removeFilesContaining, analyzeFilesContaining):
-        print(analyzeFilesContaining)
         # Setup parameters
         analysisFiles = []; filesAdded = set();
         
