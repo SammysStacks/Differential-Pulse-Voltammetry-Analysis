@@ -31,8 +31,6 @@ if __name__ == "__main__":
     #    User Parameters to Edit (More Complex Edits are Inside the Files)   #
     # ---------------------------------------------------------------------- #
     
-    # Hello Juliane IO fixed it!
-
     # Input data information
     dataDirectory = os.path.dirname(__file__) + "/Data/Test MQ/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
