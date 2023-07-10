@@ -142,7 +142,7 @@ class bestLinearFit2:
         if len(peakIndices) == 0 and not deriv:
             # Analyze the peaks in the first derivative.
             filteredVelocity = scipy.signal.savgol_filter(yData, 9, 3, deriv=1)
-            return self.findPeak(xData, filteredVelocity, self.ignoredBoundaryPoints, deriv = True)
+            return self.findPeak(xData, filteredVelocity, deriv = True)
         # If no peaks found, return an empty list.
         return peakIndices
     
