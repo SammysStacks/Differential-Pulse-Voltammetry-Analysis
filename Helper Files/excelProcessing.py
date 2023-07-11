@@ -318,9 +318,12 @@ class processFiles(handlingExcelFormat):
             cellA = row[0]
             if type(cellA.value) in [int, float]:
                 dataStartRow = cellA.row + 1
-                endDataCol = len(row)
+                endDataCol = 0
+                for endDataCol in range(len(row)):
+                    if row[endDataCol].value == None:
+                        break
                 break
-
+            
         # initialize holder for variables.
         allCurrent = [[] for _ in range(endDataCol-1)]
         allPotential = [[] for _ in range(endDataCol-1)]
@@ -330,7 +333,7 @@ class processFiles(handlingExcelFormat):
         # Loop Through the Excel Worksheet to collect all the data
         for dataRow in excelSheet.iter_rows(min_col=1, min_row=dataStartRow-1, max_col=endDataCol, max_row=excelSheet.max_row):
             # Stop Collecting Data When there is No More
-            if dataRow[0].value == None:
+            if dataRow[0].value == None or str(dataRow[0].value) == '\ufeff':
                 break
             
             # Get Data
