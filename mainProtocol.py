@@ -152,7 +152,8 @@ try:
     # If they all share a common potential.
     if np.all(np.equal(analysisInfo[:,0], analysisInfo[:, 0][0])):
         # Plot the compiled analysis.
-        plot.plotCompiledResults(analysisInfo, peakInfo, fileNames)
+        if len(peakInfo) < 30:
+            plot.plotCompiledResults(analysisInfo, peakInfo, fileNames)
 
         # Save single excel document with all the information.
         saveExcelPath = dataDirectory + "DPV Analysis/Analysis Files/compiledAnalysis.xlsx"
