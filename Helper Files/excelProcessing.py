@@ -534,7 +534,7 @@ class saveExcelData(handlingExcelFormat):
     def saveAllData(self, analysisInfo, peakInfo, saveExcelPath):
         print("\nSaving a Compiled Analysis")
         # Extract the data.
-        allPeakPotentials, allPeakCurrents = np.array(peakInfo, dtype=object).T
+        allPeakPotentials, allPeakCurrents = np.array(peakInfo, dtype=object).transpose((1,0,2))
         allPotentials, allUnfilteredCurrents, allCurrents, allBaselineCurrents, allBaselineSubtractedCurrents = np.asarray(analysisInfo).transpose((1,0,2))
         # ------------------------------------------------------------------ #
         # -------------------- Setup the excel document -------------------- #
