@@ -188,7 +188,8 @@ class plots:
         
     def plotCompiledResults(self, analysisInfo, peakInfo, fileNames):
         # Extract the data.
-        allPeakPotentials, allPeakCurrents = np.array(peakInfo, dtype=object).transpose((1,0,2))
+        peakInfoArray = np.array(peakInfo, dtype=object)
+        allPeakPotentials, allPeakCurrents = np.array(peakInfo, dtype=object).transpose((1,0,2)[0:len(peakInfoArray.shape)])
         allPotentials, allUnfilteredCurrents, allCurrents, allBaselineCurrents, allBaselineSubtractedCurrents = np.asarray(analysisInfo).transpose((1,0,2))
         
         # Compilee the information.
