@@ -32,7 +32,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
     
     # Input data information
-    dataDirectory = os.path.dirname(__file__) + "/Data/Test MQ/"   # Specify the data folder with the CHI files. Must end with '/'.
+    dataDirectory = os.path.dirname(__file__) + "/Data/Jihong/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
     analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.
@@ -97,21 +97,16 @@ if __name__ == "__main__":
         unfilteredCurrent = unfilteredCurrent[np.logical_and((potentialBounds[0] or -np.inf) <= potential, potential <= (potentialBounds[1] or np.inf))]
         potential = potential[np.logical_and((potentialBounds[0] or -np.inf) <= potential, potential <= (potentialBounds[1] or np.inf))]
         
-        # Determine Whether the Data is Oxidative or Reductive
-        numNeg = sum(1 for currentVal in unfilteredCurrent if currentVal < 0)
-        reductiveScan = numNeg > len(unfilteredCurrent)/2
-        reductiveScale = -(2*reductiveScan - 1)
-        
         # ------------------------ Get DPV Baseline ------------------------ #
         # Apply a Low Pass Filter
         current = scipy.signal.savgol_filter(unfilteredCurrent, 7, 3)
         
         # Perform Iterative Polynomial Subtraction
         if useBaselineSubtraction:
-            baselineCurrent, baselineSubtractedCurrent, peakIndices = dpvProtocols.useBaselineSubtraction(current, potential, polynomialOrder, reductiveScale)
+            baselineCurrent, baselineSubtractedCurrent, peakIndices = dpvProtocols.useBaselineSubtraction(current, potential, polynomialOrder)
         # Find Optimal Linear Baseline Under Peak
         elif useLinearFit:
-            baselineCurrent, baselineSubtractedCurrent, peakIndices = dpvProtocols.useLinearFit(current, potential, reductiveScale)
+            baselineCurrent, baselineSubtractedCurrent, peakIndices = dpvProtocols.useLinearFit(current, potential)
         # At This Point, You BETTER be Getting the Peaks from the CHI File 
         elif not useCHIPeaks:
             sys.exit("Please Specify a DPV Peak Detection Mechanism")

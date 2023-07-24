@@ -21,8 +21,30 @@ class dpvProtocols:
         # Initialize baseline subtraction classes.
         self.linearBaselineFit = _baselineProtocols.bestLinearFit2()
         self.polynomialBaselineFit = _baselineProtocols.polynomialBaselineFit()
-
-    def useBaselineSubtraction(self, current, potential, polynomialOrder, reductiveScale):
+    
+    def findReductiveScale_CV(self, current, potential):
+        # Calculate the first derivative
+        samplingFreq = abs(len(potential)/(potential[-1] - potential[0]))
+        firstDeriv = scipy.signal.savgol_filter(current, int(samplingFreq*0.1), 3, deriv = 1)
+        
+        # See if the first derivative of the initial points are positive or negative.
+        initialScanDeriv = firstDeriv[0:int(samplingFreq*0.1)]
+        if len(initialScanDeriv)/2 < (initialScanDeriv > 0).sum():
+            return -1
+        return 1
+    
+    def findReductiveScale(self, current):
+        # Determine Whether the Data is Oxidative or Reductive
+        numNeg = sum(1 for currentVal in current if currentVal < 0)
+        reductiveScan = numNeg > len(current)/2
+        reductiveScale = -(2*reductiveScan - 1)
+        
+        return reductiveScale
+            
+    def useBaselineSubtraction(self, current, potential, polynomialOrder):
+        # Check if the data is oxidative or reductive.
+        reductiveScale = self.findReductiveScale(current)
+        
         # Get Baseline from Iterative Polynomial Subtraction
         baseline = self.polynomialBaselineFit.baselineSubtractionAPI(current, polynomialOrder, reductiveScale)
         # Find Current After Baseline Subtraction
@@ -40,7 +62,10 @@ class dpvProtocols:
         
         return baseline, baselineCurrent, peakIndices
             
-    def useLinearFit(self, current, potential, reductiveScale):
+    def useLinearFit(self, current, potential):
+        # Check if the data is oxidative or reductive.
+        reductiveScale = self.findReductiveScale(current)
+        
         # Remove the baseline from the data
         baseline = self.linearBaselineFit.findBaseline(potential, current*reductiveScale)*reductiveScale
         baselineCurrent = current - baseline

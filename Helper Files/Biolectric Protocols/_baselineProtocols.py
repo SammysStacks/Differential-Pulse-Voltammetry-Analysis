@@ -49,17 +49,24 @@ class polynomialBaselineFit:
 
 class bestLinearFit2:
     
-    def __init__(self):
+    def setSamplingFreq(self, potential):
+        # General parameters.
+        self.samplingFreq = abs(len(potential)/(potential[-1] - potential[0]))
+        
         # Specify peak parameters.
-        self.ignoredBoundaryPoints = 5
-        self.minPeakDuration = 10
+        self.ignoredBoundaryPoints = int(self.samplingFreq*0.02)
+        self.minPeakDuration = int(self.samplingFreq*0.04)
     
     def findBaseline(self, xData, yData):
+        self.setSamplingFreq(xData)
         
         # ------------------------- Find the Peaks ------------------------- #
+        # Calculate derivative.
+        firstDeriv = scipy.signal.savgol_filter(yData, max(5, int(self.samplingFreq*0.04)), 3, deriv=1)
+        
         # Find the Peak
-        peakIndices = list(self.findPeak(xData, yData, deriv=False))      
-        peakIndices.extend(self.findPeak(xData, scipy.signal.savgol_filter(yData, 9, 3, deriv=1), deriv=True))   
+        peakIndices = list(self.findPeak(xData, yData, deriv=False))     
+        peakIndices.extend(self.findPeak(xData, firstDeriv, deriv=True))
         peakIndices = list(set(peakIndices))
         # Return None if No Peak Found
         if len(peakIndices) == 0:
@@ -86,25 +93,31 @@ class bestLinearFit2:
         # ------------------------------------------------------------------ #
         
         # ------------------ Organize the Peak Boundaries ------------------ #
-        finalIndCuts = [-1]
-        peakCutPointer = 0; peakCutIndBuffer = 0
+        finalIndCuts = [0]
+        peakCutPointer = 0; peakCutIndBuffer = 1
         # Loop Through the Peak Boundaries, and Remove Overlapping Boundaries
         for _ in range(len(peakIndCuts)):
             peakCutInd = peakIndCuts[peakCutPointer]
             
-            # If we are at the Last Peak, Add the Peak
+            # Base case: we are at the last peak boundary.
             if peakCutPointer == len(peakIndCuts) - 1:
+                # Add the final boundary.
                 finalIndCuts.append(peakCutInd)
                 break
-            # If the Adjacent Peak is Before, Skip Over the Peak (Peaks Overlap)
-            elif peakIndCuts[peakCutPointer+1] <= peakCutInd + peakCutIndBuffer:
+            
+            # If the next peak is, Skip Over the Peak (Peaks Overlap)
+            elif peakIndCuts[peakCutPointer+1] + peakCutIndBuffer < peakCutInd:
                 peakCutPointer += 2
             # Else, Keep the Peak Boundary and Check the Next
             else:
+                # In case of peakCutIndBuffer
+                if len(finalIndCuts) != 0:
+                    peakCutInd = max(peakCutInd, finalIndCuts[-1])
+                    
                 peakCutPointer += 1
                 finalIndCuts.append(peakCutInd)
         finalIndCuts.append(len(yData))
-                
+
         # ASSERTION: There Should be an Even Number of Boundaries (LEFT, RIGHT)
         assert len(finalIndCuts)%2 == 0
         # ------------------------------------------------------------------ #
@@ -115,14 +128,15 @@ class bestLinearFit2:
         for peakBoundaryInd in finalIndCuts[1:]:
             
             if removeData:
-                baseline = np.concatenate((baseline, yData[previousBoundaryInd+1:peakBoundaryInd]))
+                baseline = np.concatenate((baseline, yData[previousBoundaryInd:peakBoundaryInd]))
             else:
-                # Fit Lines to Ends of Graph
-                lineSlope, slopeIntercept = np.polyfit(xData[[previousBoundaryInd, peakBoundaryInd]], yData[[previousBoundaryInd, peakBoundaryInd]], 1)
+                # Draw a Linear Line Between the Points
+                lineSlope = (yData[previousBoundaryInd] - yData[peakBoundaryInd])/(xData[previousBoundaryInd] - xData[peakBoundaryInd])
+                slopeIntercept = yData[previousBoundaryInd] - lineSlope*xData[previousBoundaryInd]
                 linearFit = lineSlope*xData + slopeIntercept
                 
                 # Piece Together yData's Baseline
-                baseline = np.concatenate((baseline, linearFit[previousBoundaryInd:peakBoundaryInd+1]))
+                baseline = np.concatenate((baseline, linearFit[previousBoundaryInd:peakBoundaryInd]))
             
             # Reset for the Next Round
             previousBoundaryInd = peakBoundaryInd
@@ -132,7 +146,7 @@ class bestLinearFit2:
     
     def findPeak(self, xData, yData, deriv = False):
         # Find All Peaks in the Data
-        peakInfo = scipy.signal.find_peaks(yData, prominence=10E-10, distance = 5)
+        peakInfo = scipy.signal.find_peaks(yData, prominence=10E-10, distance = max(3, int(self.samplingFreq*0.02)))
         
         # Remove Peaks Nearby Boundaries
         peakIndices = peakInfo[0]
@@ -141,33 +155,35 @@ class bestLinearFit2:
         # If peaks are found in the data
         if len(peakIndices) == 0 and not deriv:
             # Analyze the peaks in the first derivative.
-            filteredVelocity = scipy.signal.savgol_filter(yData, 9, 3, deriv=1)
+            filteredVelocity = scipy.signal.savgol_filter(yData, max(3, int(self.samplingFreq*0.04)), 3, deriv=1)
             return self.findPeak(xData, filteredVelocity, deriv = True)
         # If no peaks found, return an empty list.
         return peakIndices
     
     def findPeakGeneral(self, xData, yData):
-        peakInfo = scipy.signal.find_peaks(yData, prominence=10E-10, distance = 10)
+        peakInfo = scipy.signal.find_peaks(yData, prominence=10E-10, distance = max(3, int(self.samplingFreq*0.04)))
         peakIndices = peakInfo[0]
+        # Remove peaks that are negative.
+        peakIndices = peakIndices[yData[peakIndices] > 0]
+        
         return peakIndices
 
-    
     def findLinearBaseline(self, xData, yData, peakInd):
         # Define a threshold for distinguishing good/bad lines
-        maxBadPointsTotal = int(len(xData)/10)
+        maxBadPointsTotal = int(self.samplingFreq*0.05)
         # Store Possibly Good Tangent Indexes
         goodTangentInd = [[] for _ in range(maxBadPointsTotal)]
                 
         # For Each Index Pair on the Left and Right of the Peak
         for rightInd in range(peakInd+2, len(yData), 1):
             for leftInd in range(peakInd-2, -1, -1):
-                if rightInd - leftInd < self.minPeakDuration:
+                if abs(rightInd - leftInd) < self.minPeakDuration:
                     continue
                 
                 # Initialize range of data to check
-                checkPeakBuffer = 0#int((rightInd - leftInd)/4)
-                xDataCut = xData[max(0, leftInd - checkPeakBuffer):rightInd + checkPeakBuffer]
-                yDataCut = yData[max(0, leftInd - checkPeakBuffer):rightInd + checkPeakBuffer]
+                checkPeakBuffer = max(1, int(self.samplingFreq*0.02)) #int((rightInd - leftInd)/4)
+                xDataCut = xData[max(0, leftInd - checkPeakBuffer):rightInd + 1 + checkPeakBuffer]
+                yDataCut = yData[max(0, leftInd - checkPeakBuffer):rightInd + 1 + checkPeakBuffer]
                 
                 # Draw a Linear Line Between the Points
                 lineSlope = (yData[leftInd] - yData[rightInd])/(xData[leftInd] - xData[rightInd])
@@ -176,10 +192,12 @@ class bestLinearFit2:
 
                 # Find the Number of Points Above the Tangent Line
                 numWrongSideOfTangent = (linearFit - yDataCut > 0).sum()
+                if 0.1 < numWrongSideOfTangent/len(linearFit):
+                    continue
 
                 # Define a threshold for distinguishing good/bad lines
-                maxBadPoints = int(len(linearFit)/15) # Minimum 1/6
-                if numWrongSideOfTangent < maxBadPoints:
+                maxBadPoints = int(self.samplingFreq*0.05)
+                if numWrongSideOfTangent < maxBadPoints and numWrongSideOfTangent < maxBadPointsTotal:
                     goodTangentInd[numWrongSideOfTangent].append((leftInd, rightInd))
                     
         # If Nothing Found, Try and Return a Semi-Optimal Tangent Position
