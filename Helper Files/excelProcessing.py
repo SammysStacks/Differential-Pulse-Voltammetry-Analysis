@@ -183,49 +183,89 @@ class processFiles(handlingExcelFormat):
 
     def extractCHIData_DPV(self, chiWorksheet):
         peakCurrentList = []; peakPotentialList = []; 
-        potential = []; current = []; findStart = True
-        # Loop Through the Info Section and Extract the Needxed Run Info from Excel
-        rowGenerator = chiWorksheet.rows
-        for cell in rowGenerator:
-            # Get Cell Value
-            cellVal = cell[0].value
-            if cellVal == None:
-                continue
-            # If this is Jihong's board
-            if 'Command Sent' in cellVal:
-                return self.extractJihongBoardData(chiWorksheet)
-            elif ',' in cellVal:
-                cellValues = cellVal.split(",")
-                cell = []
-                for cellValue in cellValues:
-                    cell.append(self.cellObject(cellValue))
-                cellVal = cell[0].value
+        potential = []; current = []; searchForPeakInfo = True
+        
+        # Initialize flags for the type of program.
+        squareWaveVoltammetry = False
+        differenceChannel = False
+        
+        excelsheetRows = list(chiWorksheet.rows)
+        
+        # For each row in the excel sheet.
+        for rowInd in range(len(excelsheetRows)):
+            row = excelsheetRows[rowInd]
+            firstCellValue = row[0].value
+            # If the cell is empty.
+            if firstCellValue == None:
+                continue # Read in the next value.
             
-            if findStart:
+            # Base case: this is Jihong's board
+            if 'Command Sent' in firstCellValue:
+                return self.extractJihongBoardData(chiWorksheet)
+            
+            # Commas could indicate the wrong delimiter.
+            elif ',' in firstCellValue:
+                cellValues = firstCellValue.split(",")
+                # Reinitialize the row/cellValue
+                row = [self.cellObject(cellValue) for cellValue in cellValues]
+                firstCellValue = row[0].value
+                
+            # For SWV, we are looking for the Difference tab
+            if firstCellValue.startswith("Difference:"):
+                squareWaveVoltammetry = True
+                differenceChannel = True
+            elif firstCellValue.startswith(("Forward:", "Reverse:")):
+                assert squareWaveVoltammetry
+                differenceChannel = False
+            
+            # If we havent found the data yet.
+            if searchForPeakInfo:
+                # If we are at the data section.
+                if "Potential/V" in firstCellValue:
+                    searchForPeakInfo = False
+                    # Find the number of columns of data.
+                    for numCurrentChannels in range(1, len(row)):
+                        if row[numCurrentChannels].value == None:
+                            break
+                    if not squareWaveVoltammetry:
+                        assert numCurrentChannels == 1, "Unsure if this is required"
+                    else:
+                        for channelInd in range(1, numCurrentChannels + 1, 3):
+                            potential.append([])
+                            current.append([])
+                    
+                if squareWaveVoltammetry and not differenceChannel:
+                    continue
+                
                 # If Peak Found by CHI, Get Peak Potential
-                if cellVal.startswith("Ep = "):
-                    peakPotential = float(cellVal.split(" = ")[-1][:-1])
+                if firstCellValue.startswith("Ep = "):
+                    peakPotential = float(firstCellValue.split(" = ")[-1][:-1])
                     peakPotentialList.append(peakPotential)
                 # If Peak Found by CHI, Get Peak Current
-                elif cellVal.startswith("ip = "):
-                    peakCurrent = float(cellVal.split(" = ")[-1][:-1])
+                elif firstCellValue.startswith("ip = "):
+                    peakCurrent = float(firstCellValue.split(" = ")[-1][:-1])
                     peakCurrentList.append(peakCurrent)
-                elif "Potential/V" in cellVal:
-                    next(rowGenerator) # Skip Over Empty Cell After Title
-                    findStart = False
+                    
             else:
                 # Break out of Loop if no More Data (edge effect if someone edits excel)
-                if cell[0].value == None and len(potential) != 0:
+                if row[0].value == None and len(potential) != 0:
                     break
                 
-                # Find the Potential and Current Data points
-                potential.append(float(cell[0].value))
-                current.append(float(cell[1].value))
+                if squareWaveVoltammetry:
+                    signalInd = 0
+                    for channelInd in range(1, numCurrentChannels + 1, 3):
+                        potential[signalInd].append(float(row[0].value))
+                        current[signalInd].append(float(row[channelInd].value))
+                        signalInd += 1
+                else:
+                    # Find the Potential and Current Data points
+                    potential.append(float(row[0].value))
+                    current.append(float(row[1].value))
 
         # Convert to Numpy Array
         current = np.array(current)
         potential = np.array(potential)
-        
+
         return potential, current, peakPotentialList, peakCurrentList
     
     def extractJihongBoardData(self, chiWorksheet):
@@ -387,7 +427,7 @@ class processFiles(handlingExcelFormat):
             potential, current, peakPotentialList, peakCurrentList = self.extractCompiledAnalysis(xlWorksheet[0])
         else:
             potential, current, peakPotentialList, peakCurrentList = self.extractCHIData_DPV(xlWorksheet[0])
-        
+                    
         xlWorkbook.close()
         # Finished Data Collection: Close Workbook and Return Data to User
         return potential, current, peakPotentialList, peakCurrentList
