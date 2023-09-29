@@ -265,6 +265,8 @@ class processFiles(handlingExcelFormat):
         # Convert to Numpy Array
         current = np.array(current)
         potential = np.array(potential)
+        peakCurrentList = [[] for _ in range(len(current))]
+        peakPotentialList = [[] for _ in range(len(current))]
 
         return potential, current, peakPotentialList, peakCurrentList
     

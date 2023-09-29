@@ -32,7 +32,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
     
     # Input data information
-    dataDirectory = os.path.dirname(__file__) + "/Data/_testMultiChannelSWV/"   # Specify the data folder with the CHI files. Must end with '/'.
+    dataDirectory = os.path.dirname(__file__) + "/Data/FrequencyScan/50Hz/"   # Specify the data folder with the CHI files. Must end with '/'.
     # Specify conditions for reading in files.
     removeFilesContaining = []    # A list of strings that cannot be in any file analyzed.
     analyzeFilesContaining = []   # A list of strings that must be in any file analyzed.
@@ -67,7 +67,12 @@ if __name__ == "__main__":
     analysisFiles = extractData.getFiles(dataDirectory, removeFilesContaining, analyzeFilesContaining)
     # Compile all the data from the files.
     allPotential, allCurrent, allPeakPotentials, allPeakCurrents, fileNames = extractData.getAllData(analysisFiles, dataDirectory, testSheetNum = 0, excelDelimiter = ",")
-    
+    # allPotential: A list of numpy arrays of each potential. Dim: numFiles*numChannels, numScanPoints
+    # allPeakPotentials: A list of lists of peak potentials. Dim: numFiles*numChannels, numPeaksCHI
+    # allCurrent: A list of numpy arrays of each current. Dim: numFiles*numChannels, numScanPoints
+    # allPeakCurrents: A list of lists of peak currents. Dim: numFiles*numChannels, numPeaksCHI
+    # fileNames: A list of all channels beings analyzed. Dim: numFiles*numChannels
+
     # Create plot for all the curves.
     numSubPlotsX = min(len(fileNames), numSubPlotsX)
     plot = dataPlotting.plots(dataDirectory, useCHIPeaks, numSubPlotsX, len(fileNames))
@@ -85,7 +90,7 @@ if __name__ == "__main__":
     # For each file we are analyzing.
     for dpvInd in range(len(allPotential)):
         # Extract all the DPV information from the trial.
-        peakPotentials, peakCurrents = allPeakPotentials[dpvInd], allPeakCurrents[dpvInd]
+        peakPotentials, peakCurrents = allPeakPotentials[dpvInd], allPeakCurrents[dpvInd]    
         potential, unfilteredCurrent = allPotential[dpvInd], allCurrent[dpvInd]
         fileName = fileNames[dpvInd]      
           
