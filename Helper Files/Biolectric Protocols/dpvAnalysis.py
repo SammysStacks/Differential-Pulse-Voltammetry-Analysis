@@ -25,13 +25,22 @@ class dpvProtocols:
     def findReductiveScale_CV(self, current, potential):
         # Calculate the first derivative
         samplingFreq = abs(len(potential)/(potential[-1] - potential[0]))
-        firstDeriv = scipy.signal.savgol_filter(current, int(samplingFreq*0.1), 3, deriv = 1)
+        firstDeriv = scipy.signal.savgol_filter(current, self.convert_to_odd(int(samplingFreq*0.1)), 3, deriv = 1)
         
         # See if the first derivative of the initial points are positive or negative.
         initialScanDeriv = firstDeriv[0:int(samplingFreq*0.1)]
         if len(initialScanDeriv)/2 < (initialScanDeriv > 0).sum():
             return -1
         return 1
+    
+    def convert_to_odd(self, integer):
+        # If the integer is even
+        if integer % 2 == 0:
+            # Add 1 to make it odd
+            return integer + 1
+        else:
+            # If it's already odd, return it as is
+            return integer
     
     def findReductiveScale(self, current):
         # Determine Whether the Data is Oxidative or Reductive
