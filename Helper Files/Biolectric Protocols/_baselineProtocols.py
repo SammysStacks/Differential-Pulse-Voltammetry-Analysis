@@ -62,7 +62,7 @@ class bestLinearFit2:
         
         # ------------------------- Find the Peaks ------------------------- #
         # Calculate derivative.
-        firstDeriv = scipy.signal.savgol_filter(yData, max(5, int(self.samplingFreq*0.04)), 3, deriv=1)
+        firstDeriv = scipy.signal.savgol_filter(yData, self.convert_to_odd(max(5, int(self.samplingFreq*0.04))), 3, deriv=1)
         
         # Find the Peak
         peakIndices = list(self.findPeak(xData, yData, deriv=False))     
@@ -155,10 +155,19 @@ class bestLinearFit2:
         # If peaks are found in the data
         if len(peakIndices) == 0 and not deriv:
             # Analyze the peaks in the first derivative.
-            filteredVelocity = scipy.signal.savgol_filter(yData, max(3, int(self.samplingFreq*0.04)), 3, deriv=1)
+            filteredVelocity = scipy.signal.savgol_filter(yData, max(3, self.convert_to_odd(int(self.samplingFreq*0.04))), 3, deriv=1)
             return self.findPeak(xData, filteredVelocity, deriv = True)
         # If no peaks found, return an empty list.
         return peakIndices
+    
+    def convert_to_odd(self, integer):
+        # If the integer is even
+        if integer % 2 == 0:
+            # Add 1 to make it odd
+            return integer + 1
+        else:
+            # If it's already odd, return it as is
+            return integer
     
     def findPeakGeneral(self, xData, yData):
         peakInfo = scipy.signal.find_peaks(yData, prominence=10E-10, distance = max(3, int(self.samplingFreq*0.04)))
